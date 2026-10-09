@@ -2,7 +2,7 @@
 and what the trend page is rendered from.
 
 The record exists so the gap page can show the worklist shrinking week to week
-(and so a mapper can see their own stops disappear from it). Two properties
+(and so a mapper can see their own trees come off it). Two properties
 matter more than the rest: a run on cached OSM must not add a point -- it saw
 nothing new, and a flat line it drew would be a lie -- and a backfill must be
 safe to interrupt and re-run, since it is paced slowly on purpose.
@@ -19,9 +19,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src import compare, config, history, site  # noqa: E402
 
-SUMMARY = {"missing": 15, "noref": 40, "far": 2, "duplicate": 1, "unnamed": 9,
-           "mismatch": 7, "ondemand": 3, "osm_only": 4,
-           "city": 648, "osm_stops": 702, "osm_date": "2026-09-28 22:03Z",
+SUMMARY = {"empty_cell": 452, "thin_cell": 159, "missing": 15,
+           "nospecies": 8032, "nogirth": 8095, "matched": 8189,
+           "city": 42712, "osm_trees": 53997, "osm_date": "2026-09-28 22:03Z",
            "osm_stale": False}
 
 
@@ -29,7 +29,7 @@ SUMMARY = {"missing": 15, "noref": 40, "far": 2, "duplicate": 1, "unnamed": 9,
 def paths(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
     monkeypatch.setattr(config, "HISTORY_PATH", str(tmp_path / "history.jsonl"))
-    monkeypatch.setattr(config, "SLIM_PATH", str(tmp_path / "bus-stops-slim.geojsonl"))
+    monkeypatch.setattr(config, "SLIM_PATH", str(tmp_path / "trees-slim.geojsonl"))
     monkeypatch.setattr(history, "seed", lambda: False)
     monkeypatch.setattr("addressvault.net.wait_for_link", lambda **k: None)
     return tmp_path
@@ -40,10 +40,9 @@ def test_a_live_run_appends_one_row_with_the_counts(paths):
     rows = history.load()
     assert len(rows) == 1
     assert rows[0] == {"date": "2026-09-28", "osm_date": "2026-09-28 22:03Z",
-                       "source": "live", "missing": 15, "noref": 40, "far": 2,
-                       "duplicate": 1, "unnamed": 9, "mismatch": 7,
-                       "ondemand": 3, "osm_only": 4, "city": 648,
-                       "osm_stops": 702}
+                       "source": "live", "empty_cell": 452, "thin_cell": 159,
+                       "missing": 15, "nospecies": 8032, "nogirth": 8095,
+                       "matched": 8189, "city": 42712, "osm_trees": 53997}
 
 
 def test_a_second_run_the_same_day_replaces_the_first(paths):
@@ -74,7 +73,7 @@ def test_dates_step_from_since_and_stop_before_until():
 def test_the_attic_query_only_adds_a_date_setting():
     live = compare._overpass_query()
     attic = compare._overpass_query(at="2026-06-01T00:00:00Z")
-    assert attic.startswith('[out:json][timeout:180][date:"2026-06-01T00:00:00Z"];')
+    assert attic.startswith('[out:json][timeout:240][date:"2026-06-01T00:00:00Z"];')
     assert attic.split(";", 1)[1] == live.split(";", 1)[1]
 
 
@@ -92,7 +91,7 @@ def _fake_overpass(answers):
 
 def test_backfill_skips_dates_on_record_and_stops_on_no_answer(paths, monkeypatch):
     history.record(SUMMARY, day="2026-06-08")
-    monkeypatch.setattr(compare, "_city_stops", lambda: iter([]))
+    monkeypatch.setattr(compare, "_city_trees", lambda: iter([]))
     fake = _fake_overpass([{"elements": []}, None, {"elements": []}])
     monkeypatch.setattr(compare, "_try_overpass", fake)
     slept = []
@@ -109,16 +108,16 @@ def test_backfill_skips_dates_on_record_and_stops_on_no_answer(paths, monkeypatc
     assert slept == [30], "paced between queries, never before the first"
 
 
-def test_backfill_counts_gaps_against_the_city_stops(paths, monkeypatch):
-    city = [{"ref": 109, "name": "Edinburgh at Ginger northbound",
-             "fixed_route": True, "on_demand": None,
-             "lat": 43.511076, "lon": -80.213566}]
-    monkeypatch.setattr(compare, "_city_stops", lambda: iter(city))
+def test_backfill_counts_gaps_against_the_city_trees(paths, monkeypatch):
+    city = [{"city_asset_id": "FT10001", "genus": "Quercus",
+             "lat": 43.495513, "lon": -80.20035}]
+    monkeypatch.setattr(compare, "_city_trees", lambda: iter(city))
     monkeypatch.setattr(compare, "_try_overpass",
                         _fake_overpass([{"elements": []}]))
     history.backfill(date(2026, 6, 1), date(2026, 6, 2), 7, 0, sleep=lambda s: None)
     row = history.load()[0]
-    assert row["missing"] == 1 and row["city"] == 1 and row["osm_stops"] == 0
+    assert row["missing"] == 1 and row["city"] == 1 and row["osm_trees"] == 0
+    assert row["empty_cell"] == 0, "one tree is a sparse cell, not an empty one"
 
 
 def test_the_history_page_inlines_the_rows_and_tables_them(paths, tmp_path):

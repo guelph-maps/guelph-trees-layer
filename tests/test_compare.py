@@ -4,7 +4,8 @@ The Overpass half is carried over from the parks sibling, where it pins the
 failure that actually happened: on 2026-08-10 and again on 2026-08-17
 overpass-api.de answered 504, the single attempt gave up, the run silently
 compared against a fortnight-old cache and reported success. The matching half
-is this layer's own: by ref, then by distance, and never across agencies.
+is this layer's own: by distance alone, nearest-first and one-to-one, rolled up
+into 250 m cells.
 """
 
 import json
@@ -25,7 +26,7 @@ from src import compare, config, site  # noqa: E402
 OSM_BASE = (datetime.now(timezone.utc) - timedelta(minutes=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
 GOOD = {"osm3s": {"timestamp_osm_base": OSM_BASE},
         "elements": [{"type": "node", "id": i, "lat": 43.5, "lon": -80.2,
-                      "tags": {"highway": "bus_stop"}}
+                      "tags": {"natural": "tree"}}
                      for i in range(config.OSM_MIN_ELEMENTS + 1)]}
 
 
@@ -62,7 +63,7 @@ def _post(by_host):
 @pytest.fixture
 def paths(tmp_path, monkeypatch):
     """Point the cache + sidecar at a temp dir, and never really sleep."""
-    monkeypatch.setattr(config, "OSM_CACHE_PATH", str(tmp_path / "osm-bus-stops.json"))
+    monkeypatch.setattr(config, "OSM_CACHE_PATH", str(tmp_path / "osm-trees.json"))
     monkeypatch.setattr(config, "OSM_FETCH_PATH", str(tmp_path / ".osm-fetch.json"))
     monkeypatch.setattr(compare.time, "sleep", lambda _s: None)
     return tmp_path
@@ -227,8 +228,8 @@ def test_a_fresh_comparison_adds_nothing():
 
 # --- matching ---------------------------------------------------------------
 #
-# Positions are built as metre offsets from one City stop, so each test reads
-# as the street layout it describes.
+# Positions are built as metre offsets from one point, so each test reads as
+# the street it describes.
 
 BASE_LAT, BASE_LON = 43.5448, -80.2482
 
@@ -239,136 +240,153 @@ def _at(north_m=0.0, east_m=0.0):
     return lat, lon
 
 
-def _city(ref, name="Wyndham at Fountain southbound", north_m=0, east_m=0,
-          fixed_route=True):
+def _city(asset="FT1", north_m=0, east_m=0, genus="Acer",
+          species="Acer platanoides", dbh=30):
     lat, lon = _at(north_m, east_m)
-    return {"ref": ref, "name": name, "fixed_route": fixed_route,
-            "on_demand": None if fixed_route else "Monday-Saturday",
-            "lat": lat, "lon": lon}
+    t = {"city_asset_id": asset, "lat": lat, "lon": lon,
+         "address": "10 Wyndham St N"}
+    if genus:
+        t["genus"] = genus
+    if species:
+        t["species"] = species
+    if dbh:
+        t["dbh_cm"] = dbh
+        t["circumference"] = round(dbh * 3.14159 / 100, 2)
+    return t
 
 
 def _node(oid, north_m=0, east_m=0, **tags):
     lat, lon = _at(north_m, east_m)
     return {"type": "node", "id": oid, "lat": lat, "lon": lon,
-            "tags": {"highway": "bus_stop", **tags}}
+            "tags": {"natural": "tree", **tags}}
 
 
-def _run(city, elements):
-    gaps, counts = compare._match(city, compare._osm_stops({"elements": elements}))
-    return {(g["properties"]["ref"], g["properties"]["status"]) for g in gaps}, counts
+def _osm(*nodes):
+    return compare._osm_trees({"elements": list(nodes)})
 
 
-def test_a_stop_with_its_ref_and_name_is_not_a_gap():
-    gaps, counts = _run([_city(801)],
-                        [_node(1, 2, name="Wyndham at Fountain southbound",
-                               ref="801", network="Guelph Transit")])
-    assert gaps == set() and sum(counts.values()) == 0
+def test_a_tree_within_match_m_is_matched():
+    m = compare.match([_city()], _osm(_node(1, east_m=4)))
+    assert list(m) == [0] and abs(m[0][1] - 4) < 0.1
 
 
-def test_names_match_through_case_and_punctuation_only():
-    assert compare._norm("Gordon & Nottingham") == compare._norm("gordon and nottingham")
-    # Dropping the direction is a real difference, not noise.
-    assert compare._norm("Gordon at Nottingham") != \
-        compare._norm("Gordon at Nottingham southbound")
+def test_a_tree_beyond_match_m_is_not():
+    assert compare.match([_city()], _osm(_node(1, east_m=6))) == {}
 
 
-def test_ref_match_reports_mismatch_and_unnamed():
-    gaps, _ = _run([_city(801), _city(297, "Wyndham at Fountain northbound", east_m=20)],
-                   [_node(1, ref="801", name="Wyndham at Fountain"),
-                    _node(2, east_m=20, ref="297")])
-    assert gaps == {(801, "mismatch"), (297, "unnamed")}
+def test_two_city_trees_never_share_one_osm_tree():
+    # Street trees 6 m apart, one OSM node between them nearer the second: it
+    # goes to the second, and the first is missing -- not both matched.
+    city = [_city("A"), _city("B", east_m=6)]
+    m = compare.match(city, _osm(_node(1, east_m=4)))
+    assert m == {1: (0, pytest.approx(2, abs=0.1))}
 
 
-def test_a_ref_matched_stop_far_away_is_far():
-    gaps, _ = _run([_city(501)], [_node(1, north_m=120, ref="501",
-                                        name="Wyndham at Fountain southbound")])
-    assert gaps == {(501, "far")}
+def test_nearest_first_beats_first_come():
+    # A is 3 m from node 1; B is 1 m from it and 4 m from node 2. Taking City
+    # trees in list order would hand node 1 to A. Nearest-first gives it to B,
+    # whose 1 m pair is the one that is surely real; A's only other candidate
+    # is 8 m off, so A is missing -- the audit's rule, kept so the counts agree.
+    city = [_city("A", east_m=-2), _city("B", east_m=2)]
+    m = compare.match(city, _osm(_node(1, east_m=1), _node(2, east_m=6)))
+    assert m == {1: (0, pytest.approx(1, abs=0.1))}
 
 
-def test_two_osm_stops_far_apart_with_one_ref_are_a_duplicate():
-    # Seen downtown on 2026-10-08: ref 801 on two nodes 59 m apart.
-    gaps, _ = _run([_city(801)],
-                   [_node(1, 1, ref="801", name="Wyndham at Fountain southbound"),
-                    _node(2, 60, ref="801", name="Wyndham at Fountain southbound")])
-    assert gaps == {(801, "duplicate")}
+def test_matches_reach_across_grid_cells():
+    # The hash grid is MATCH_M wide; a pair straddling a grid line must still
+    # be found.
+    city = [_city(east_m=0.01 + i * 100) for i in range(5)]
+    osm = _osm(*[_node(i, east_m=0.01 + i * 100 + 4.9) for i in range(5)])
+    assert len(compare.match(city, osm)) == 5
 
 
-def test_a_platform_way_beside_its_node_is_not_a_duplicate():
-    way = {"type": "way", "id": 9, "center": dict(zip(("lat", "lon"), _at(4))),
-           "tags": {"public_transport": "platform", "bus": "yes", "ref": "801",
-                    "name": "Wyndham at Fountain southbound"}}
-    gaps, _ = _run([_city(801)],
-                   [_node(1, 1, ref="801", name="Wyndham at Fountain southbound"), way])
-    assert gaps == set()
+def _analyse(city, *nodes):
+    cells, trees, counts = compare.analyse(city, _osm(*nodes))
+    return cells, trees, counts
 
 
-def test_an_unreferenced_osm_stop_goes_to_the_nearest_city_stop_only():
-    # Two City stops 20 m apart across the road; one OSM stop with no ref, 5 m
-    # from the southbound one. Within NEAR_M of both, it is only the nearer's.
-    gaps, counts = _run(
-        [_city(801), _city(297, "Wyndham at Fountain northbound", east_m=20)],
-        [_node(1, east_m=5)],
-    )
-    assert gaps == {(801, "noref"), (297, "missing")}
-    assert counts["noref"] == 1 and counts["missing"] == 1
+def test_a_matched_bare_tree_needs_species_and_circumference():
+    cells, trees, counts = _analyse([_city()], _node(7, east_m=1))
+    (rows,) = trees.values()
+    row = dict(zip(compare.TREE_FIELDS, rows[0]))
+    assert row["status"] == "matched" and row["osm"] == 7
+    assert row["need"] == ["species", "circumference"]
+    assert counts["nospecies"] == 1 and counts["nogirth"] == 1
 
 
-def test_an_unreferenced_stop_beyond_near_m_is_not_claimed():
-    gaps, _ = _run([_city(801)], [_node(1, north_m=config.NEAR_M + 5)])
-    assert gaps == {(801, "missing")}
+def test_a_tree_osm_already_names_needs_nothing_from_its_name():
+    for tag in ("genus", "species", "taxon"):
+        _c, trees, counts = _analyse([_city()], _node(7, **{tag: "Acer"}))
+        assert counts["nospecies"] == 0, tag
+        row = dict(zip(compare.TREE_FIELDS, trees[next(iter(trees))][0]))
+        assert row["need"] == ["circumference"]
 
 
-def test_another_agencys_stop_is_never_matched():
-    # GO Transit's platforms share Guelph Central Station with Guelph Transit's.
-    gaps, counts = _run([_city(5833, "Guelph Central Station Platform 1")],
-                        [_node(1, 2, network="GO Transit", operator="Metrolinx",
-                               name="Guelph Central GO")])
-    assert gaps == {(5833, "missing")}
-    assert counts["osm_only"] == 0
+def test_a_fully_tagged_match_is_no_row_at_all():
+    _c, trees, counts = _analyse(
+        [_city()], _node(7, genus="Acer", circumference="0.94"))
+    assert trees == {} and counts["matched"] == 1
 
 
-def test_an_on_demand_only_stop_is_not_called_missing():
-    gaps, counts = _run([_city(9001, fixed_route=False)], [])
-    assert gaps == {(9001, "ondemand")}
-    assert counts["missing"] == 0
+def test_the_city_offers_only_what_it_has():
+    # No genus in the City row: nothing to offer for species. No DBH: nothing
+    # for circumference.
+    _c, trees, counts = _analyse([_city(genus=None, species=None, dbh=None)],
+                                 _node(7))
+    assert trees == {} and counts["nospecies"] == counts["nogirth"] == 0
 
 
-def test_an_osm_ref_the_city_does_not_list_is_osm_only():
-    gaps, counts = _run([_city(801)],
-                        [_node(1, ref="801", name="Wyndham at Fountain southbound",
-                               network="Guelph Transit"),
-                         _node(2, north_m=300, ref="4242", network="Guelph Transit")])
-    assert gaps == {("4242", "osm_only")}
-    assert counts["osm_only"] == 1
+def test_cell_status_thresholds():
+    n = config.CELL_MIN_CITY
+    assert compare.cell_status(n - 1, 0, 0) == "sparse"
+    assert compare.cell_status(n, 0, 0) == "empty_cell"
+    # Matched share decides thin, not the OSM count: a woodlot's worth of OSM
+    # trees in the cell does not make its street trees mapped.
+    assert compare.cell_status(n, 10 * n, 0) == "thin_cell"
+    half = config.THIN_SHARE * 20
+    assert compare.cell_status(20, 20, half - 1) == "thin_cell"
+    assert compare.cell_status(20, 20, half) == "covered"
 
 
-def test_an_untagged_stops_ref_is_matched_but_never_called_osm_only():
-    # Most Guelph stops with a ref carry a network too, but a bare ref is still
-    # read as a Guelph Transit stop ID for matching. It is not read as a stale
-    # one: an untagged stop's numbering may be another agency's.
-    gaps, _ = _run([_city(801)],
-                   [_node(1, ref="801", name="Wyndham at Fountain southbound"),
-                    _node(2, north_m=300, ref="4242")])
-    assert gaps == set()
+def test_an_empty_street_is_an_empty_cell_and_every_tree_is_listed():
+    n = config.CELL_MIN_CITY
+    city = [_city(f"T{i}", east_m=i * 8) for i in range(n)]
+    cells, trees, counts = _analyse(city)
+    # Eight-metre spacing over 80 m may straddle a cell edge; count across all.
+    assert counts["missing"] == n
+    assert sum(len(r) for r in trees.values()) == n
+    assert all(c["osm"] == 0 for c in cells.values())
 
 
-def test_a_multi_valued_ref_matches_each_stop():
-    gaps, _ = _run([_city(801), _city(297, "Wyndham at Fountain northbound")],
-                   [_node(1, ref="801;297")])
-    assert gaps == {(801, "unnamed"), (297, "unnamed")}
+def test_a_woodlot_with_no_city_tree_is_not_a_cell():
+    cells, _t, _c = _analyse([_city()], *[_node(i, north_m=1000 + i) for i in range(30)])
+    assert len(cells) == 1 and next(iter(cells.values()))["osm"] == 0
 
 
-def test_ways_are_placed_at_their_center():
-    stops = compare._osm_stops({"elements": [
-        {"type": "way", "id": 7, "center": {"lat": 43.5, "lon": -80.2},
-         "tags": {"public_transport": "platform", "bus": "yes"}},
-        {"type": "relation", "id": 8, "tags": {}},   # no position: skipped
-    ]})
-    assert [(s["otype"], s["lat"], s["lon"]) for s in stops] == [("way", 43.5, -80.2)]
+def test_cells_are_labelled_by_their_commonest_street():
+    city = [_city("A"), _city("B", east_m=8), _city("C", east_m=16)]
+    city[2]["address"] = "3 Quebec St"
+    cells, _t, _c = _analyse(city)
+    labels = {c["label"] for c in cells.values()}
+    assert "Wyndham St N" in labels
 
 
-def test_the_query_asks_for_both_tagging_schemes_with_a_position():
+def test_cell_ids_round_trip_to_bounds_that_hold_the_point():
+    lat, lon = _at(123, -456)
+    key = compare.cell_of({"lat": lat, "lon": lon})
+    w, s, e, n = compare.cell_bounds(key)
+    assert w <= lon < e and s <= lat < n
+
+
+def test_ways_are_not_trees():
+    trees = compare._osm_trees({"elements": [
+        {"type": "way", "id": 1, "center": {"lat": 43.5, "lon": -80.2},
+         "tags": {"natural": "tree"}}]})
+    assert trees == []
+
+
+def test_the_query_asks_for_tree_nodes_in_the_bbox():
     q = compare._overpass_query()
-    assert 'nwr["highway"="bus_stop"]' in q
-    assert 'nwr["public_transport"="platform"]["bus"="yes"]' in q
-    assert q.rstrip().endswith("out center tags;")
+    assert 'node["natural"="tree"]' in q and "out;" in q
+    s, w, n, e = config.GUELPH_BBOX
+    assert f"({s},{w},{n},{e})" in q

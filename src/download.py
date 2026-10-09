@@ -1,9 +1,10 @@
-"""Download the Guelph Bus Stops GeoJSON from the City's ArcGIS service.
+"""Download the Guelph Trees GeoJSON from the City's ArcGIS service.
 
-The parks sibling's download step with a different layer number. An ArcGIS
+The bus stops sibling's download step with a different layer, a WHERE clause
+(City- and boundary-owned trees only) and a field list. An ArcGIS
 FeatureServer `/query` is generated per request, so it has no Last-Modified
-or Content-Length worth caching on. The body is ~230 KB, cheap enough to
-fetch every time; what is compared is a **sha256 of the response**.
+or Content-Length worth caching on. The body is ~18 MB and comes back in
+a few seconds, cheap enough to fetch every time; what is compared is a **sha256 of the response**.
 Identical hash means the City has not touched the layer, and the existing dated
 file is kept -- which also keeps DATA_DATE meaning "when the City data last
 changed" rather than "when the build last ran".
@@ -27,15 +28,14 @@ from addressvault import net
 
 from src import config
 
-# The Bus Stops layer is ~650 points, ~230 KB of GeoJSON -- a retry costs
-# a couple of seconds when the link is healthy and buys back a week when it is
-# not.
+# The scoped Trees layer is ~42,700 points, ~18 MB of GeoJSON -- a retry
+# costs seconds when the link is healthy and buys back a week when it is not.
 RETRIES = 3
 RETRY_WAIT = 30
 
 
 def download(force=False):
-    """Download the latest Bus Stops GeoJSON.
+    """Download the latest Trees GeoJSON.
 
     Returns (status, filepath) where status is "DOWNLOADED" or "SKIPPED".
     Raises ``net.LinkUnavailable`` when the host has no usable link: nothing was
@@ -49,7 +49,7 @@ def download(force=False):
     # a wait would be killed mid-sleep -- retrying is the scheduler's job.
     net.wait_for_link(wait=False)
 
-    print("Querying the Bus Stops FeatureServer ...")
+    print("Querying the Trees FeatureServer ...")
     body = _fetch(config.DATASET_URL)
     _check_payload(body)
     digest = hashlib.sha256(body).hexdigest()
@@ -64,7 +64,7 @@ def download(force=False):
     # No server-side edit date exists on this service (the layer has no
     # editingInfo and no last_edited_date field), so the file is dated by the
     # day the change was first seen here.
-    filename = f"bus-stops-{date.today().isoformat()}.geojson"
+    filename = f"trees-{date.today().isoformat()}.geojson"
     filepath = os.path.join(config.DATA_DIR, filename)
     with open(filepath, "wb") as f:
         f.write(body)
@@ -102,10 +102,11 @@ def _check_payload(body):
     An ArcGIS service answers an error with HTTP 200 and a JSON body carrying an
     ``error`` object, so raise_for_status proves nothing. It also silently
     truncates a page at maxRecordCount and sets ``exceededTransferLimit``; at
-    ~650 rows against a limit of 100,000 that cannot happen today, so this
-    raises rather than paginating -- a partial extract would report the stops
-    that fell off the end as missing from OSM, and that is worth stopping for,
-    not working around.
+    ~42,700 rows against a limit of 100,000 that does not happen today, so
+    this raises rather than paginating -- a partial extract would drop whole
+    neighbourhoods off the tiles and off the gap page, and that is worth
+    stopping for, not working around. The City adds ~1,000 trees a year, so the
+    limit is decades away.
     """
     try:
         doc = json.loads(body)

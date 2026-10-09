@@ -9,8 +9,8 @@ so the chart never shows a false plateau.
 The record is deliberately tiny and reconstructible. OSM keeps its own history,
 so a lost file is rebuilt with ``backfill``, which asks Overpass what OSM
 looked like on each past Monday and re-runs the comparison against it. That is
-why nothing heavier -- the Overpass replies, the per-stop verdicts -- is kept.
-The one caveat: a reconstructed week uses today's City stops, since the City
+why nothing heavier -- the Overpass replies, the per-tree verdicts -- is kept.
+The one caveat: a reconstructed week uses today's City trees, since the City
 side is not archived; the page says which points are reconstructed.
 """
 
@@ -24,8 +24,8 @@ from addressvault import net
 
 from src import config
 
-FIELDS = ("missing", "noref", "far", "duplicate", "unnamed", "mismatch",
-          "ondemand", "osm_only", "city", "osm_stops")
+FIELDS = ("empty_cell", "thin_cell", "missing", "nospecies", "nogirth",
+          "matched", "city", "osm_trees")
 
 
 def record(summary, day=None):
@@ -95,7 +95,7 @@ def backfill(since, until, step_days, pause, sleep=time.sleep):
         print("History: nothing to backfill.")
         return 0
     print(f"Backfilling {len(days)} date(s) from {config.ATTIC_URL} ...")
-    city = list(compare._city_stops())
+    city = list(compare._city_trees())
     added = 0
     for i, d in enumerate(days):
         if i:
@@ -106,10 +106,11 @@ def backfill(since, until, step_days, pause, sleep=time.sleep):
         if data is None:
             print("  no answer; stopping. Run backfill again later to resume.")
             break
-        osm = compare._osm_stops(data)
-        _gaps, counts = compare._match(city, osm)
+        osm = compare._osm_trees(data)
+        _cells, _trees, counts = compare.analyse(city, osm)
         row = {"date": d.isoformat(), "osm_date": d.isoformat(), "source": "attic",
-               "city": len(city), "osm_stops": len(osm), **counts}
+               "city": len(city), "osm_trees": len(osm),
+               **{k: counts[k] for k in FIELDS if k in counts}}
         _write(load() + [row])
         added += 1
         print("  " + ", ".join(f"{counts[s]:,} {s}" for s in compare.STATUSES))

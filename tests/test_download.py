@@ -19,7 +19,7 @@ from addressvault import net  # noqa: E402
 from src import config, download as dl  # noqa: E402
 
 
-def _collection(n=648, **extra):
+def _collection(n=42712, **extra):
     return json.dumps({
         "type": "FeatureCollection",
         "features": [{
@@ -94,7 +94,7 @@ def test_a_dropped_query_is_retried(data_dir, monkeypatch):
     status, path = dl.download()
     assert status == "DOWNLOADED"
     assert state["n"] == 2
-    assert os.path.basename(path).startswith("bus-stops-")
+    assert os.path.basename(path).startswith("trees-")
 
 
 def test_out_of_retries_on_a_dead_link_raises_link_unavailable(data_dir, monkeypatch):
@@ -127,18 +127,18 @@ def test_an_arcgis_error_is_not_written_as_data(data_dir, monkeypatch):
                         lambda *a, **k: FakeResponse(body))
     with pytest.raises(RuntimeError, match="error"):
         dl.download()
-    assert not list(data_dir.glob("bus-stops-*.geojson"))
+    assert not list(data_dir.glob("trees-*.geojson"))
 
 
 def test_a_truncated_page_stops_the_run(data_dir, monkeypatch):
-    # A partial extract is the dangerous failure: the stops that fell off the
+    # A partial extract is the dangerous failure: the trees that fell off the
     # end would be reported to mappers as missing from OSM.
     body = _collection(n=10, exceededTransferLimit=True)
     monkeypatch.setattr("src.download.requests.get",
                         lambda *a, **k: FakeResponse(body))
     with pytest.raises(RuntimeError, match="exceededTransferLimit"):
         dl.download()
-    assert not list(data_dir.glob("bus-stops-*.geojson"))
+    assert not list(data_dir.glob("trees-*.geojson"))
 
 
 def test_an_unchanged_extract_skips_the_write(data_dir, monkeypatch):
@@ -151,7 +151,7 @@ def test_an_unchanged_extract_skips_the_write(data_dir, monkeypatch):
 
     second_status, second_path = dl.download()
     assert (second_status, second_path) == ("SKIPPED", first_path)
-    assert len(list(data_dir.glob("bus-stops-*.geojson"))) == 1
+    assert len(list(data_dir.glob("trees-*.geojson"))) == 1
 
 
 def test_a_changed_extract_is_written(data_dir, monkeypatch):

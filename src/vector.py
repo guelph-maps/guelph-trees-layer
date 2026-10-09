@@ -12,7 +12,7 @@ from src import config
 
 # tile-join writes thousands of small files; doing that on the WSL filesystem
 # and copying the tree out afterwards is far faster than writing onto /mnt/c.
-WSL_PBF_DIR = "/tmp/guelph-bus-stops-vector-tiles"
+WSL_PBF_DIR = "/tmp/guelph-trees-vector-tiles"
 
 
 def build_vector(slim_path=None):
@@ -29,12 +29,14 @@ def build_vector(slim_path=None):
     mbtiles_wsl = win_to_wsl(config.MBTILES_PATH)
 
     # -r1: tippecanoe thins points at low zooms by default, which for a
-    # reference layer means a stop that is simply not there at z12-z14.
+    # reference layer means a tree that is simply not there at z14-z16. A z14
+    # tile over downtown carries a few thousand trees; that is the price of
+    # every one being clickable, and why the floor is z14 and not lower.
     tippecanoe = (
         f"tippecanoe -o '{mbtiles_wsl}' "
         f"-Z{config.VECTOR_MINZOOM} -z{config.VECTOR_MAXZOOM} -r1 "
         f"--no-tile-size-limit --no-feature-limit "
-        f"-l {config.VECTOR_LAYER_NAME} -n 'Guelph Bus Stops' "
+        f"-l {config.VECTOR_LAYER_NAME} -n 'Guelph Trees' "
         f"-A '{config.ATTRIBUTION}' --force '{slim_wsl}'"
     )
     print("Running tippecanoe ...")

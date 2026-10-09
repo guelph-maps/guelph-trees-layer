@@ -8,7 +8,7 @@ from datetime import date
 
 from PIL import Image
 
-from src import compare, config, history
+from src import config, history, raster
 
 # Screenshots shown on the landing page, copied from the project root when
 # present (they are added manually after the first publish).
@@ -20,10 +20,10 @@ def build_site():
     """Render index.html, copy assets and screenshots into build/site/."""
     os.makedirs(config.SITE_DIR, exist_ok=True)
 
-    stop_count = "600+"
+    tree_count = "42,000+"
     if os.path.isfile(config.COUNT_PATH):
         with open(config.COUNT_PATH, encoding="utf-8") as f:
-            stop_count = f"{int(f.read().strip()):,}"
+            tree_count = f"{int(f.read().strip()):,}"
 
     build_date = date.today().isoformat()
 
@@ -43,7 +43,8 @@ def build_site():
         ),
         "{{BUILD_DATE}}": build_date,
         "{{DATA_DATE}}": _data_date(build_date),
-        "{{STOP_COUNT}}": stop_count,
+        "{{TREE_COUNT}}": tree_count,
+        "{{LEGEND}}": raster.legend_html(),
         "{{GITHUB_REPO}}": config.GITHUB_REPO,
         "{{DATASET_PAGE}}": config.DATASET_PAGE,
         "{{LICENSE_URL}}": config.LICENSE_URL,
@@ -72,9 +73,9 @@ def build_site():
 
 
 def _build_gaps_page(build_date):
-    """Render gaps/ (map + table) when a comparison has produced gaps.geojson."""
-    if not os.path.isfile(config.GAPS_GEOJSON_PATH):
-        print("  (no gaps.geojson -- run 'compare'; skipping gap page)")
+    """Render gaps/ (cell map + table) when a comparison has produced cells."""
+    if not os.path.isfile(config.CELLS_PATH) or not os.path.isfile(config.TREES_PATH):
+        print("  (no cells.geojson -- run 'compare'; skipping gap page)")
         return
 
     gaps_dir = os.path.join(config.SITE_DIR, "gaps")
@@ -93,10 +94,15 @@ def _build_gaps_page(build_date):
         "{{BUILD_DATE}}": build_date,
         "{{DATA_DATE}}": _data_date(build_date),
         **{f"{{{{{k.upper()}_COUNT}}}}": f"{summary.get(k, 0):,}"
-           for k in compare.STATUSES},
+           for k in ("empty_cell", "thin_cell", "missing", "nospecies",
+                     "nogirth", "matched")},
+        "{{MATCHED_PCT}}": _pct(summary.get("matched", 0), summary.get("city", 0)),
         "{{CITY_COUNT}}": f"{summary.get('city', 0):,}",
-        "{{OSM_COUNT}}": f"{summary.get('osm_stops', 0):,}",
-        "{{FAR_M}}": str(config.FAR_M),
+        "{{OSM_COUNT}}": f"{summary.get('osm_trees', 0):,}",
+        "{{CELL_M}}": str(config.CELL_M),
+        "{{MATCH_M}}": str(config.MATCH_M),
+        "{{CELL_MIN_CITY}}": str(config.CELL_MIN_CITY),
+        "{{THIN_PCT}}": f"{config.THIN_SHARE * 100:.0f}",
         "{{OSM_DATE}}": summary.get("osm_date", build_date),
         "{{OSM_NOTE}}": _osm_note(summary),
         "{{GITHUB_REPO}}": config.GITHUB_REPO,
@@ -114,7 +120,8 @@ def _build_gaps_page(build_date):
 
     with open(os.path.join(gaps_dir, "index.html"), "w", encoding="utf-8") as f:
         f.write(html)
-    shutil.copy(config.GAPS_GEOJSON_PATH, os.path.join(gaps_dir, "gaps.geojson"))
+    shutil.copy(config.CELLS_PATH, os.path.join(gaps_dir, "cells.geojson"))
+    shutil.copy(config.TREES_PATH, os.path.join(gaps_dir, "trees.json"))
     for name in ("gaps.css", "gaps.js"):
         shutil.copy(os.path.join(config.ASSETS_DIR, name),
                     os.path.join(gaps_dir, name))
@@ -141,7 +148,7 @@ def _build_history_page(gaps_dir, build_date):
         "{{FIRST_DATE}}": rows[0]["date"] if rows else build_date,
         "{{HISTORY_JSON}}": json.dumps(rows),
         "{{HISTORY_ROWS}}": "\n".join(_history_row(r) for r in reversed(rows)),
-        # Only counts, but counts of the City's stops, and like the gap page
+        # Only counts, but counts of the City's trees, and like the gap page
         # this can be the one page a reader opens: it carries the notice too.
         "{{LICENSE_URL}}": config.LICENSE_URL,
         "{{LICENSE_NOTICE}}": config.LICENSE_NOTICE,
@@ -168,7 +175,7 @@ def _osm_note(summary):
 
     The gap list is only worth acting on if both sides are fresh, and the OSM
     side is the one that moves daily. A page dated today whose OSM data is two
-    weeks old sends a mapper to add a stop somebody else already added.
+    weeks old sends a mapper to add a tree somebody else already added.
     """
     if not summary.get("osm_stale"):
         return ""
@@ -178,6 +185,10 @@ def _osm_note(summary):
         f'these gaps were computed against OSM data from <strong>{when}</strong>. '
         'Anything mapped since then still shows as a gap.</p>'
     )
+
+
+def _pct(part, whole):
+    return f"{100 * part / whole:.0f}" if whole else "0"
 
 
 def _data_date(fallback):
