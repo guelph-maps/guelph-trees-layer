@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guelph Bus Stops &mdash; OSM Coverage Gaps</title>
+<link rel="stylesheet" href="../index.css">
+<link rel="stylesheet" href="gaps.css">
+<link rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin="">
+<script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""></script>
+<script defer src="gaps.js"></script>
+</head>
+<body class="app">
+
+<header class="bar">
+  <div class="bar-head">
+    <h1>Guelph Bus Stops &mdash; OSM coverage gaps</h1>
+    <a class="back" href="../">&larr; reference layer</a>
+    <a class="back" href="history.html">gaps over time &rarr;</a>
+  </div>
+  <div class="counts">
+    <div class="count missing"><strong>{{MISSING_COUNT}}</strong><span>missing in OSM</span></div>
+    <div class="count noref"><strong>{{NOREF_COUNT}}</strong><span>OSM stop without ref</span></div>
+    <div class="count far"><strong>{{FAR_COUNT}}</strong><span>more than {{FAR_M}}&nbsp;m off</span></div>
+    <div class="count duplicate"><strong>{{DUPLICATE_COUNT}}</strong><span>ref used twice</span></div>
+    <div class="count mismatch"><strong>{{MISMATCH_COUNT}}</strong><span>name mismatches</span></div>
+    <div class="count unnamed"><strong>{{UNNAMED_COUNT}}</strong><span>OSM stop unnamed</span></div>
+    <div class="count osm_only"><strong>{{OSM_ONLY_COUNT}}</strong><span>OSM only</span></div>
+    <div class="count ondemand"><strong>{{ONDEMAND_COUNT}}</strong><span>on-demand only, not in OSM</span></div>
+    <div class="count"><strong>{{CITY_COUNT}}</strong><span>City stops</span></div>
+    <div class="count"><strong>{{OSM_COUNT}}</strong><span>OSM stops</span></div>
+    <div class="count meta-count">City data {{DATA_DATE}} &middot; OSM data {{OSM_DATE}} &middot; compared {{BUILD_DATE}}</div>
+  </div>
+  {{OSM_NOTE}}
+  <p class="licence">
+    <a href="{{LICENSE_URL}}">{{LICENSE_NOTICE}}</a>
+    Source: <a href="{{DATASET_PAGE}}">Bus Stops</a>.
+  </p>
+</header>
+
+<div class="layout">
+  <div id="gap-map"
+       data-geojson="gaps.geojson"
+       data-raster="../tiles/raster/{z}/{x}/{y}.png"></div>
+
+  <aside class="panel">
+    <div class="panel-head">
+      <div class="controls">
+        <label><span class="swatch missing"></span>
+          <input type="checkbox" data-status="missing" checked> Missing</label>
+        <label><span class="swatch noref"></span>
+          <input type="checkbox" data-status="noref" checked> No ref</label>
+        <label><span class="swatch far"></span>
+          <input type="checkbox" data-status="far" checked> Far</label>
+        <label><span class="swatch duplicate"></span>
+          <input type="checkbox" data-status="duplicate" checked> Duplicate</label>
+        <label><span class="swatch mismatch"></span>
+          <input type="checkbox" data-status="mismatch" checked> Mismatch</label>
+        <label><span class="swatch unnamed"></span>
+          <input type="checkbox" data-status="unnamed" checked> Unnamed</label>
+        <label><span class="swatch osm_only"></span>
+          <input type="checkbox" data-status="osm_only" checked> OSM only</label>
+        <label><span class="swatch ondemand"></span>
+          <input type="checkbox" data-status="ondemand"> On-demand</label>
+        <input type="search" id="filter" placeholder="Filter by number or name...">
+      </div>
+      <p class="hint">
+        Blue dots are the City's stops (raster layer); coloured markers flag the
+        gaps. Click a row to zoom to it &mdash; where OSM has a stop for it, a
+        dashed line joins the City point to the OSM one &mdash; then press
+        <kbd>O</kbd> to open it on openstreetmap.org or <kbd>I</kbd> in the iD
+        editor (each row has the same <strong>OSM&nbsp;&middot;&nbsp;iD</strong>
+        link pair). Matching is by <code>ref</code>, then by distance &mdash;
+        verify against street-level imagery before editing OSM.
+      </p>
+    </div>
+    <div class="table-scroll">
+      <table id="gap-table">
+        <thead>
+          <tr><th>Stop</th><th class="col-name">Name (City)</th>
+              <th>Status</th><th>OSM &middot; iD</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </aside>
+</div>
+
+</body>
+</html>

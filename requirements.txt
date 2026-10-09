@@ -1,0 +1,4 @@
+addressvault
+requests
+Pillow
+ijson
