@@ -1,4 +1,4 @@
-$taskName   = "kk-GuelphBusStopsLayer"
+$taskName   = "kk-GuelphTreesLayer"
 $projectDir = $PSScriptRoot
 $logFile    = "$projectDir\logs\scheduler.log"
 
@@ -10,13 +10,13 @@ $action = New-ScheduledTaskAction `
     -Execute "cmd.exe" `
     -Argument "/c cd /d `"$projectDir`" && python run.py update >> `"$logFile`" 2>&1"
 
-# Weekly is enough: the stop list changes rarely, and
-# the City's service carries no edit date to poll anyway. The gap page is what
-# actually moves week to week -- it diffs against live OSM. Thursdays 16:30
-# keeps this clear of guelph-buildings-layer's Wednesday, guelph-parks-layer's
-# Tuesday and toronto-parks-layer's Monday slots, so none of them drive
+# Weekly is enough: the City plants its ~1,000 trees a year in two seasons,
+# and its service carries no edit date to poll anyway. The gap page is what
+# moves week to week -- it diffs against live OSM. Sundays 16:30, because
+# Monday to Saturday 16:30 belong to the other Guelph and Toronto layers
+# (parks, buildings, bus stops, hydrants, sidewalks...), so none of them drive
 # tippecanoe in the same WSL instance at once.
-$trigger  = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Thursday -At "16:30"
+$trigger  = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday -At "16:30"
 # Restart on failure. 'update' exits 75 as soon as it sees no usable link
 # instead of blocking on one (the ExecutionTimeLimit would kill a long wait
 # anyway), so three tries half an hour apart turn a dead link at 16:30 into a
@@ -32,5 +32,5 @@ $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Hour
 
 Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -Force
 
-Write-Host "Scheduled '$taskName' to run weekly on Thursday at 16:30."
+Write-Host "Scheduled '$taskName' to run weekly on Sunday at 16:30."
 Write-Host "Log: $logFile"
