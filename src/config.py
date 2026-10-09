@@ -88,7 +88,7 @@ VECTOR_MAXZOOM = 19
 VECTOR_LAYER_NAME = "trees"
 
 # Raster tiles. Editors overzoom the top zoom. Crowns are drawn to scale from
-# z17, where a street tree is several pixels across; see raster.py.
+# z16, where a street tree is several pixels across; see raster.py.
 RASTER_ZOOMS = [13, 14, 15, 16, 17, 18]
 
 # Source property keys read from the Trees GeoJSON.

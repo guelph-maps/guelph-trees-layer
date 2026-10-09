@@ -87,6 +87,27 @@ pre.url {
   border-radius: 4px;
 }
 
+/* Genus legend under the preview map; the list itself comes from raster.py. */
+.legend {
+  list-style: none;
+  padding: 0;
+  margin: .5rem 0 1rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: .1rem 1rem;
+  font-size: .9rem;
+}
+.legend li { margin: 0; display: flex; align-items: center; }
+.legend .swatch {
+  flex: none;
+  width: .9rem;
+  height: .9rem;
+  margin-right: .45rem;
+  border-radius: 50%;
+  border: 1px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .25);
+}
+
 figure { margin: 1rem 0; }
 figure img {
   display: block;

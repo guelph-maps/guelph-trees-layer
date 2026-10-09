@@ -31,7 +31,7 @@ City's trees have an OSM tree within 5 m. Half the city has none.
 - **Vector tiles** (MVT, z14-19) &mdash; interactive in iD; click a tree to
   read its tags (below).
 - **Raster tiles** (PNG, z13-18) &mdash; a crown per tree, coloured by genus,
-  drawn to an approximate crown size from the trunk diameter at z17-18. A
+  drawn to an approximate crown size from the trunk diameter at z16-18. A
   readable backdrop for JOSM.
 - A **landing page** with copy-paste "add this layer" instructions for both
   editors and the colour legend.

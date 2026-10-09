@@ -1,4 +1,4 @@
-// Guelph Bus Stops landing page: preview map + copy buttons.
+// Guelph Trees landing page: preview map + copy buttons.
 
 (function () {
   "use strict";
@@ -9,8 +9,9 @@
       return;
     }
 
+    // Downtown at z16, the first zoom where crowns are drawn to size.
     var map = L.map(el, { minZoom: 11, maxZoom: 19 }).setView(
-      [43.5448, -80.2482], 15
+      [43.5448, -80.2482], 16
     );
 
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -22,7 +23,7 @@
 
     L.tileLayer(el.dataset.rasterUrl, {
       minZoom: 13,
-      maxNativeZoom: 17,
+      maxNativeZoom: 18,
       maxZoom: 19,
     }).addTo(map);
   }

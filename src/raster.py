@@ -1,48 +1,101 @@
-"""Render bus stop points into raster (PNG) map tiles using Pillow.
+"""Render tree points into raster (PNG) map tiles using Pillow.
 
 Pure Python -- no native dependencies, runs the same on Windows and Linux.
 
-Each stop is a dot: filled blue for a fixed-route stop, a hollow blue ring for
-an on-demand-only pick-up point (config.FIXED_ROUTE_KEY), both with a white
-edge so they read over imagery. From LABEL_REF_MIN_ZOOM the dot carries the
-stop number -- the value a mapper types into ``ref`` -- and at NAME_ZOOM the
-number and the City's stop name, where there is room.
+Each tree is a crown: a filled circle coloured by genus (GENUS_COLORS), with a
+thin light edge from EDGE_MIN_ZOOM so it reads over both the standard map and
+aerial imagery, and a fill that is slightly transparent so a crown overlapping
+another still lets the one beneath show through.
 
-Labels are placed once per zoom, globally, against a spatial hash, so a label
-straddling a tile seam is drawn identically on both sides. Every stop's number
-is placed first, right of the dot or else left, wherever it collides with
-nothing; then, at NAME_ZOOM, each number is upgraded to number + name where the
-longer label fits. Below NAME_ZOOM a number that fits nowhere is dropped (the
-dot is still drawn); at NAME_ZOOM, the zoom a mapper edits at, every stop
-keeps its number even if it overlaps -- the station's platforms are 6-11 m
-apart, and a missing number there is worse than a crowded one.
+Below SCALE_MIN_ZOOM every tree is the same small dot -- at z13-15 a street
+tree is under a pixel across, and what the layer can usefully show there is
+where the trees are and which genera dominate a street. From SCALE_MIN_ZOOM the
+crown is drawn to an approximate real size estimated from the trunk diameter
+(crown_radius_m), so a row of new plantings looks different from a row of old
+maples. Larger crowns are drawn first, so a small tree under a big one stays
+visible on top of it.
+
+No labels: the vector layer carries the tags, and 42,000 genus names on the
+tiles would bury the colours that already say it.
+
+Crowns are drawn from small pre-rendered sprites, one per (colour, radius),
+supersampled for smooth edges and alpha-composited into the tile. Drawing
+straight onto an RGBA tile with ImageDraw would *replace* pixels rather than
+blend them: the transparency would show the basemap through a crown but never
+a neighbouring crown.
 """
 
+import html
 import json
+import math
 import os
 from collections import defaultdict
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 
 from src import config
 from src.tilemath import TILE_SIZE, lonlat_to_pixel
 
-STOP_COLOR = (25, 118, 210, 255)       # blue; passes WCAG AA against the halo
-EDGE_COLOR = (255, 255, 255, 255)
-HALO_COLOR = (255, 255, 255, 235)
-LABEL_COLOR = (13, 71, 161, 255)       # darker blue for text
-FONT_PATH = os.path.join(config.ASSETS_DIR, "font", "DejaVuSans-Bold.ttf")
-FONT_SIZE = 11
-STROKE_WIDTH = 1                       # white halo width, in pixels
+# The ten most common genera in the City's inventory, most common first, as
+# (genus, English label, RGBA). Together they are three trees in four; the rest
+# share OTHER_COLOR. Broadleaf genera take bright, saturated hues -- none of
+# them a mid green, which would vanish into park fill and into the canopy on
+# imagery. The three conifers take dark blue-greens, so evergreens read as a
+# family at a glance: spruce a blue-teal, pine a deep green, cedar a sea green.
+GENUS_COLORS = [
+    ("Acer", "Maple", (220, 38, 38, 255)),
+    ("Picea", "Spruce", (0, 105, 125, 255)),
+    ("Gleditsia", "Honey locust", (250, 204, 21, 255)),
+    ("Tilia", "Linden", (163, 230, 53, 255)),
+    ("Quercus", "Oak", (146, 84, 32, 255)),
+    ("Pinus", "Pine", (20, 83, 45, 255)),
+    ("Syringa", "Lilac", (168, 85, 247, 255)),
+    ("Thuja", "Cedar", (13, 148, 136, 255)),
+    ("Celtis", "Hackberry", (236, 72, 153, 255)),
+    ("Platanus", "Plane tree", (249, 115, 22, 255)),
+]
+OTHER_COLOR = (59, 130, 246, 255)      # any other genus: a plain blue
+UNKNOWN_COLOR = (148, 148, 148, 255)   # genus not recorded: neutral grey
+OTHER_LABEL = "Other genus"
+UNKNOWN_LABEL = "Genus not recorded"
+_COLOR_BY_GENUS = {g: c for g, _label, c in GENUS_COLORS}
 
-# Dot radius per zoom, in pixels (white edge included).
-DOT_RADIUS = {13: 2, 14: 3, 15: 4, 16: 5, 17: 6}
-RING_WIDTH = 2                         # hollow on-demand dot's ring
+FILL_ALPHA = 205                       # of 255: the basemap shows faintly through
+EDGE_COLOR = (255, 255, 255, 230)
+EDGE_PX = 1                            # light edge width
+# The edge starts here. At z13-14 a dot is 2-3 px across and an edge would be
+# all there was of it -- the city turns to pale lines; from z15 a dot is big
+# enough to carry one, and without it a pine or a spruce disappears into the
+# canopy on imagery.
+EDGE_MIN_ZOOM = 15
 
-LABEL_REF_MIN_ZOOM = 15                # stop numbers from here
-NAME_ZOOM = 17                         # numbers + names; nothing dropped
-LABEL_GAP_PX = 3                       # dot edge -> label text
-_GRID_CELL = 128                       # spatial-hash cell for collision lookups
+# Dot radius below SCALE_MIN_ZOOM, in pixels (edge included): a density map,
+# not crowns.
+DOT_RADIUS = {13: 1.1, 14: 1.5, 15: 2.75}
+
+# From this zoom a crown is drawn to scale. At z16 a pixel is 1.7 m, so a
+# mature tree is already a few pixels across and size starts to say something.
+SCALE_MIN_ZOOM = 16
+# Floor on a drawn crown's radius. Under 3 px the edge is most of the circle
+# and the colour, which is the point, shrinks to a speck; it also keeps a z16
+# crown no smaller than a z15 dot.
+MIN_CROWN_PX = 3.0
+
+# Crown radius from trunk diameter, in metres: CROWN_A_M + CROWN_B_M * dbh_cm,
+# clamped to [CROWN_MIN_M, CROWN_MAX_M]. Urban crown diameter runs roughly
+# 0.15-0.2 m per cm of DBH; this gives a 5 cm new planting 1.5 m, a 30 cm tree
+# 3.3 m and an 80 cm one 7 m. It is an estimate for drawing, not a measurement:
+# it says "big tree here", not how far the branches reach.
+CROWN_A_M = 1.0
+CROWN_B_M = 0.075
+CROWN_MIN_M = 1.5
+CROWN_MAX_M = 7.5
+DEFAULT_CROWN_M = 2.5                  # DBH missing or implausible
+
+_EARTH_M_PER_PX_Z0 = 156543.03392      # Web Mercator ground resolution at the equator
+_COS_LAT = math.cos(math.radians(config.GUELPH_CENTER[0]))
+_SUPERSAMPLE = 4                       # sprites are drawn 4x and scaled down
+_RADIUS_STEP = 0.25                    # sprite radii are quantised to this, in px
 
 
 def build_raster(slim_path=None):
@@ -51,36 +104,111 @@ def build_raster(slim_path=None):
     Returns a dict {zoom: tile_count}.
     """
     slim_path = slim_path or config.SLIM_PATH
-    font = ImageFont.truetype(FONT_PATH, FONT_SIZE)
-    return {z: _render_zoom(slim_path, z, font) for z in config.RASTER_ZOOMS}
+    trees = _read_trees(slim_path)
+    sprites = {}
+    return {z: _render_zoom(trees, z, sprites) for z in config.RASTER_ZOOMS}
 
 
-def _render_zoom(slim_path, zoom, font):
-    stops = _read_stops(slim_path, zoom)
-    radius = DOT_RADIUS.get(zoom, DOT_RADIUS[max(DOT_RADIUS)])
-    labels = (_place_labels(stops, font, zoom, radius)
-              if zoom >= LABEL_REF_MIN_ZOOM else [])
-    print(f"Raster z{zoom}: {len(stops):,} stops, {len(labels):,} labels placed")
+def genus_color(genus):
+    """The RGBA crown colour for a genus: its own, OTHER_COLOR, or UNKNOWN_COLOR."""
+    if not genus:
+        return UNKNOWN_COLOR
+    return _COLOR_BY_GENUS.get(genus, OTHER_COLOR)
 
-    dot_tiles = defaultdict(list)
-    for s in stops:
-        x, y = s["xy"]
-        box = (x - radius, y - radius, x + radius, y + radius)
-        for key in _tiles_touching(box):
-            dot_tiles[key].append(s)
 
-    label_tiles = defaultdict(list)
-    for x, y, text, anchor, box in labels:
-        for key in _tiles_touching(box):
-            label_tiles[key].append((x, y, text, anchor))
+def valid_dbh(dbh_cm):
+    """The DBH in cm if it is a plausible tree's, else None.
+
+    Zero, negative and anything over config.MAX_DBH_CM are data-entry errors;
+    drawing an 879 cm tree as the largest crown in the city would advertise the
+    one value in the extract that is certainly wrong.
+    """
+    if not isinstance(dbh_cm, (int, float)) or isinstance(dbh_cm, bool):
+        return None
+    if dbh_cm <= 0 or dbh_cm > config.MAX_DBH_CM:
+        return None
+    return dbh_cm
+
+
+def crown_radius_m(dbh_cm):
+    """Approximate crown radius in metres for a trunk diameter in cm."""
+    dbh = valid_dbh(dbh_cm)
+    if dbh is None:
+        return DEFAULT_CROWN_M
+    return min(max(CROWN_A_M + CROWN_B_M * dbh, CROWN_MIN_M), CROWN_MAX_M)
+
+
+def metres_per_pixel(zoom):
+    """Ground resolution at Guelph's latitude. The city spans 0.14 degrees of
+    latitude, under 0.3% of scale -- one value for all of it is plenty."""
+    return _EARTH_M_PER_PX_Z0 * _COS_LAT / (2 ** zoom)
+
+
+def crown_radius_px(dbh_cm, zoom):
+    """The radius a tree is drawn at, in pixels, at ``zoom``."""
+    if zoom < SCALE_MIN_ZOOM:
+        return DOT_RADIUS.get(zoom, DOT_RADIUS[max(DOT_RADIUS)])
+    return max(crown_radius_m(dbh_cm) / metres_per_pixel(zoom), MIN_CROWN_PX)
+
+
+def legend_html():
+    """The palette as an HTML list, for {{LEGEND}} on the landing page."""
+    rows = [(c, f"{html.escape(label)} <i>{html.escape(g)}</i>")
+            for g, label, c in GENUS_COLORS]
+    rows.append((OTHER_COLOR, html.escape(OTHER_LABEL)))
+    rows.append((UNKNOWN_COLOR, html.escape(UNKNOWN_LABEL)))
+    items = "\n".join(
+        f'  <li><span class="swatch" style="background:rgb({r},{g},{b})">'
+        f"</span><span>{text}</span></li>"
+        for (r, g, b, _a), text in rows
+    )
+    return f'<ul class="legend">\n{items}\n</ul>'
+
+
+def _read_trees(slim_path):
+    """[(lon, lat, rgba, dbh_cm or None), ...] from the slim GeoJSONL."""
+    trees = []
+    with open(slim_path, encoding="utf-8") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            feat = json.loads(line)
+            lon, lat = feat["geometry"]["coordinates"][:2]
+            p = feat["properties"]
+            trees.append((lon, lat, genus_color(p.get("genus")),
+                          valid_dbh(p.get("dbh_cm"))))
+    return trees
+
+
+def _render_zoom(trees, zoom, sprites):
+    edge = zoom >= EDGE_MIN_ZOOM
+    placed = []
+    for lon, lat, color, dbh in trees:
+        r = round(crown_radius_px(dbh, zoom) / _RADIUS_STEP) * _RADIUS_STEP
+        x, y = lonlat_to_pixel(lon, lat, zoom)
+        placed.append((r, x, y, color))
+    # Largest first, so small crowns land on top. The sort is stable and the
+    # input is in file order, so a re-run draws identical tiles.
+    placed.sort(key=lambda t: -t[0])
+
+    tiles = defaultdict(list)
+    for r, x, y, color in placed:
+        key = (color, r, edge)
+        sprite = sprites.get(key)
+        if sprite is None:
+            sprite = sprites[key] = _sprite(color, r, edge)
+        size = sprite.size[0]
+        left, top = math.floor(x) - size // 2, math.floor(y) - size // 2
+        for tx in range(left // TILE_SIZE, (left + size - 1) // TILE_SIZE + 1):
+            for ty in range(top // TILE_SIZE, (top + size - 1) // TILE_SIZE + 1):
+                tiles[(tx, ty)].append((left, top, sprite))
+    print(f"Raster z{zoom}: {len(trees):,} trees in {len(tiles):,} tiles")
 
     out_dir = os.path.join(config.RASTER_TILE_DIR, str(zoom))
-    keys = set(dot_tiles) | set(label_tiles)
     made_dirs = set()
     written = 0
-    for tx, ty in keys:
-        img = _render_tile(tx, ty, dot_tiles.get((tx, ty), ()),
-                           label_tiles.get((tx, ty), ()), font, radius)
+    for (tx, ty), crowns in tiles.items():
+        img = _render_tile(tx, ty, crowns)
         if img.getbbox() is None:
             continue
         tdir = os.path.join(out_dir, str(tx))
@@ -92,136 +220,39 @@ def _render_zoom(slim_path, zoom, font):
     return written
 
 
-def _read_stops(slim_path, zoom):
-    """[{xy, ref, name, fixed_route}, ...] in global pixels at ``zoom``."""
-    stops = []
-    with open(slim_path, encoding="utf-8") as f:
-        for line in f:
-            feat = json.loads(line)
-            lon, lat = feat["geometry"]["coordinates"][:2]
-            p = feat["properties"]
-            stops.append({
-                "xy": lonlat_to_pixel(lon, lat, zoom),
-                "ref": str(p["ref"]),
-                "name": p.get("name") or "",
-                "fixed_route": p.get("fixed_route") != "no",
-            })
-    return stops
+def _sprite(color, radius, edge):
+    """One crown, centred in the middle pixel of an odd-sized RGBA image.
 
-
-def label_texts(stop, zoom):
-    """The label texts a stop tries at ``zoom``, longest first."""
-    if zoom >= NAME_ZOOM and stop["name"]:
-        return [f"{stop['ref']} {stop['name']}", stop["ref"]]
-    return [stop["ref"]]
-
-
-def _place_labels(stops, font, zoom, radius):
-    """Greedy, collision-checked label placement for one zoom.
-
-    Stops are taken in stop-number order so the result is the same on every
-    run. A label goes right of its dot, else left, wherever it overlaps no
-    placed label and no other stop's dot. Returns
-    [(x, y, text, anchor, box), ...] in global pixels.
+    Drawn at _SUPERSAMPLE times the size and scaled down, which is what gives a
+    3 px crown a round edge instead of a jagged diamond.
     """
-    pad = STROKE_WIDTH
-    grid = defaultdict(list)
-
-    def cells(x0, y0, x1, y1):
-        for cx in range(int(x0 // _GRID_CELL), int(x1 // _GRID_CELL) + 1):
-            for cy in range(int(y0 // _GRID_CELL), int(y1 // _GRID_CELL) + 1):
-                yield (cx, cy)
-
-    def collides(box):
-        x0, y0, x1, y1 = box
-        for key in cells(*box):
-            for ox0, oy0, ox1, oy1 in grid.get(key, ()):
-                if x0 < ox1 and x1 > ox0 and y0 < oy1 and y1 > oy0:
-                    return True
-        return False
-
-    def add(box):
-        for key in cells(*box):
-            grid[key].append(box)
-
-    # Dots are obstacles too: a label printed across the next stop's dot hides
-    # the thing the layer exists to show.
-    for s in stops:
-        x, y = s["xy"]
-        add((x - radius, y - radius, x + radius, y + radius))
-
-    def candidate(s, text, side):
-        x, y = s["xy"]
-        w = font.getlength(text)
-        off = radius + LABEL_GAP_PX
-        if side == "right":
-            lx, anchor, box = x + off, "lm", (x + off - pad, y - FONT_SIZE / 2 - pad,
-                                              x + off + w + pad, y + FONT_SIZE / 2 + pad)
-        else:
-            lx, anchor, box = x - off, "rm", (x - off - w - pad, y - FONT_SIZE / 2 - pad,
-                                              x - off + pad, y + FONT_SIZE / 2 + pad)
-        return lx, y, text, anchor, box
-
-    def first_fit(s, text):
-        for side in ("right", "left"):
-            cand = candidate(s, text, side)
-            if not collides(cand[4]):
-                return cand
-        return None
-
-    # Numbers first, for every stop: a name placed early must not be what
-    # pushes a later stop's number into overprinting it.
-    order = sorted(stops, key=lambda s: (len(s["ref"]), s["ref"]))
-    placed = {}
-    for i, s in enumerate(order):
-        cand = first_fit(s, s["ref"])
-        if cand is None and zoom >= NAME_ZOOM:
-            cand = candidate(s, s["ref"], "right")
-        if cand:
-            add(cand[4])
-            placed[i] = cand
-
-    # Then upgrade a number to number + name wherever the longer label fits.
-    for i, s in enumerate(order):
-        texts = label_texts(s, zoom)
-        if i not in placed or len(texts) < 2:
-            continue
-        box = placed[i][4]
-        for key in cells(*box):
-            grid[key].remove(box)
-        cand = first_fit(s, texts[0])
-        if cand:
-            placed[i] = cand
-        add(placed[i][4])
-    return [placed[i] for i in sorted(placed)]
+    size = 2 * math.ceil(radius) + 3
+    ss = _SUPERSAMPLE
+    big = Image.new("RGBA", (size * ss, size * ss), (0, 0, 0, 0))
+    c = size * ss / 2
+    rr = radius * ss
+    fill = color[:3] + (FILL_ALPHA,)
+    ImageDraw.Draw(big).ellipse(
+        (c - rr, c - rr, c + rr, c + rr), fill=fill,
+        outline=EDGE_COLOR if edge else None, width=EDGE_PX * ss,
+    )
+    # Pillow scales RGBA with premultiplied alpha, so the transparent corners
+    # do not bleed black into the edge.
+    return big.resize((size, size), Image.BOX)
 
 
-def _tiles_touching(bbox, pad=STROKE_WIDTH + 1):
-    x0, y0, x1, y1 = bbox
-    for tx in range(int((x0 - pad) // TILE_SIZE), int((x1 + pad) // TILE_SIZE) + 1):
-        for ty in range(int((y0 - pad) // TILE_SIZE), int((y1 + pad) // TILE_SIZE) + 1):
-            yield (tx, ty)
-
-
-def _render_tile(tx, ty, stops, labels, font, radius):
+def _render_tile(tx, ty, crowns):
     img = Image.new("RGBA", (TILE_SIZE, TILE_SIZE), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(img)
     ox, oy = tx * TILE_SIZE, ty * TILE_SIZE
-
-    for s in stops:
-        x, y = s["xy"][0] - ox, s["xy"][1] - oy
-        box = (x - radius, y - radius, x + radius, y + radius)
-        if s["fixed_route"]:
-            draw.ellipse(box, fill=STOP_COLOR, outline=EDGE_COLOR, width=1)
-        else:
-            draw.ellipse(box, fill=EDGE_COLOR)
-            inner = (x - radius + 1, y - radius + 1, x + radius - 1, y + radius - 1)
-            draw.ellipse(inner, outline=STOP_COLOR,
-                         width=min(RING_WIDTH, max(1, radius - 1)))
-
-    for x, y, text, anchor in labels:
-        draw.text(
-            (x - ox, y - oy), text, font=font, fill=LABEL_COLOR,
-            stroke_width=STROKE_WIDTH, stroke_fill=HALO_COLOR, anchor=anchor,
-        )
+    for left, top, sprite in crowns:
+        x0, y0 = left - ox, top - oy
+        w, h = sprite.size
+        # alpha_composite refuses a negative destination, so a crown hanging
+        # over the tile's edge is cropped to the part inside it.
+        sx0, sy0 = max(0, -x0), max(0, -y0)
+        sx1, sy1 = min(w, TILE_SIZE - x0), min(h, TILE_SIZE - y0)
+        if sx0 >= sx1 or sy0 >= sy1:
+            continue
+        img.alpha_composite(sprite, dest=(x0 + sx0, y0 + sy0),
+                            source=(sx0, sy0, sx1, sy1))
     return img

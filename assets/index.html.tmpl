@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Guelph Bus Stops &mdash; Reference Layer for OSM Editors</title>
+<title>Guelph Trees &mdash; Reference Layer for OSM Editors</title>
 <link rel="stylesheet" href="index.css">
 <link rel="stylesheet"
       href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -17,58 +17,81 @@
 <body>
 <main>
 
-<h1>Guelph Bus Stops</h1>
+<h1>Guelph Trees</h1>
 <p class="lead">
-  A reference layer of the bus stops published by the City of Guelph
-  &mdash; <strong>{{STOP_COUNT}}</strong> Guelph Transit stops with their stop
-  numbers and names &mdash; ready to add to the
-  <a href="https://www.openstreetmap.org">OpenStreetMap</a> editors
+  A reference layer of the street and park trees in the City of Guelph's
+  inventory &mdash; <strong>{{TREE_COUNT}}</strong> City- and boundary-owned
+  trees with their genus, species and trunk diameter &mdash; ready to add to
+  the <a href="https://www.openstreetmap.org">OpenStreetMap</a> editors
   <strong>iD</strong> and <strong>JOSM</strong> while you map.
 </p>
 <p class="meta">City data: {{DATA_DATE}} &middot; tiles rebuilt: {{BUILD_DATE}}</p>
 
 <div class="attribution">
   <a href="{{LICENSE_URL}}">{{LICENSE_NOTICE}}</a>
-  Source: <a href="{{DATASET_PAGE}}">Bus Stops</a>.
+  Source: <a href="{{DATASET_PAGE}}">Trees</a>.
+</div>
+
+<div class="note">
+  <strong>Before you copy anything:</strong> importing individual trees is
+  contested in OpenStreetMap, and copying species and girth off this overlay
+  tree by tree is, in effect, an attribute import. Use it as a reference: add
+  a tree you can see on imagery, give it a species you have verified, and do
+  not bulk-copy. The City's licence is compatible with OSM (the OSMF Licence
+  Working Group approved it on 2024-09-09), but compatibility is not
+  community consensus.
 </div>
 
 <h2>Preview</h2>
 <div id="preview-map" data-raster-url="{{RASTER_URL}}"></div>
+{{LEGEND}}
 <p class="meta">
-  The raster layer drawn over OpenStreetMap: a blue dot per stop, its stop
-  number from zoom 15, and number and name at zoom 17. A hollow ring is a
-  pick-up point served only by on-demand transit.
+  The raster layer drawn over OpenStreetMap: a dot per tree, coloured by
+  genus. From zoom 16 each crown is drawn to an approximate size estimated
+  from the trunk diameter &mdash; a guide to &ldquo;big tree here&rdquo;, not a
+  measured canopy.
 </p>
 
 <div class="attribution">
-  <strong>Coverage vs OpenStreetMap:</strong> see which City stops are
-  <a href="gaps/">missing from OSM, missing their <code>ref</code>, misplaced
-  or named differently</a> &mdash; a mapper's worklist with an interactive map
-  and table.
+  <strong>Coverage vs OpenStreetMap:</strong> see
+  <a href="gaps/">where OSM has no trees at all (by 250&nbsp;m cell), and
+  which mapped trees lack the species and girth the City records</a> &mdash;
+  a mapper's worklist with an interactive map.
 </div>
 
 <h2>Two layers &mdash; which to use</h2>
 <table>
   <tr>
     <th>Vector layer</th>
-    <td>Interactive. Click a stop to read its tags
-        (<code>ref</code>, <code>name</code>, <code>fixed_route</code>,
-        <code>on_demand</code>, <code>objectid</code>).
-        Best in <strong>iD</strong>.</td>
+    <td>Interactive. Click a tree to read its tags. Best in
+        <strong>iD</strong>.</td>
   </tr>
   <tr>
     <th>Raster layer</th>
-    <td>Stops, numbers and names drawn directly on the tiles. A readable
+    <td>Trees drawn directly on the tiles, coloured by genus. A readable
         backdrop. Best in <strong>JOSM</strong>.</td>
   </tr>
 </table>
 
-<div class="note">
-  <strong>Heads-up:</strong> the number on the layer is the City's stop ID,
-  which is what Guelph's OSM stops already carry as <code>ref</code>. At zoom 15&ndash;16 a number that would print over
-  another is left off; at zoom 17 every stop carries at least its number, and
-  its name where there is room.
-</div>
+<h3>What the vector layer carries</h3>
+<table>
+  <tr>
+    <th>OSM keys</th>
+    <td><code>genus</code> (<em>Quercus</em>), <code>species</code>
+        (<em>Quercus rubra</em>) and <code>circumference</code> &mdash; the
+        trunk's girth in metres, which is OSM's key and unit, computed as
+        DBH&nbsp;&times;&nbsp;&pi;&nbsp;/&nbsp;100.</td>
+  </tr>
+  <tr>
+    <th>City-only fields</th>
+    <td><code>common_name</code>, <code>dbh_cm</code>, <code>planted</code>,
+        <code>owner</code>, <code>address</code>, <code>city_asset_id</code>.
+        These are <strong>not</strong> OSM tags. <code>common_name</code> is
+        often a cultivar (&ldquo;Crimson King Maple&rdquo;), not a species name.
+        <code>city_asset_id</code> is the City's inventory number &mdash; it is
+        not painted on the tree, so it is not a <code>ref</code>.</td>
+  </tr>
+</table>
 
 <h2>Add to iD</h2>
 <h3>Vector layer (interactive)</h3>
@@ -77,9 +100,10 @@
   <li>Under <em>Custom Map Data</em>, open the settings and paste this URL:</li>
 </ol>
 <pre class="url">{{VECTOR_URL}}</pre>
-<p>Zoom in, then click any stop to see its tags in the inspector.</p>
+<p>Zoom in to 15 or closer, then click any tree to see its tags in the
+   inspector.</p>
 
-<h3>Raster layer (visible numbers)</h3>
+<h3>Raster layer (visible colours)</h3>
 <ol>
   <li>Open the <em>Background</em> panel and choose <em>Custom</em>.</li>
   <li>Paste this URL template:</li>
@@ -90,12 +114,12 @@
 <h3>Raster layer (recommended for JOSM)</h3>
 <ol>
   <li>Open <em>Preferences &rarr; Imagery</em> and click <strong>+TMS</strong>.</li>
-  <li>Paste this entry (the <code>tms[13,17]</code> prefix sets the zoom range;
-      JOSM scales it up past z17):</li>
+  <li>Paste this entry (the <code>tms[13,18]</code> prefix sets the zoom range;
+      JOSM scales it up past z18):</li>
 </ol>
-<pre class="url">tms[13,17]:{{RASTER_URL_JOSM}}</pre>
+<pre class="url">tms[13,18]:{{RASTER_URL_JOSM}}</pre>
 <p>
-  Give it a name such as <em>Guelph Bus Stops</em>, click OK, then enable
+  Give it a name such as <em>Guelph Trees</em>, click OK, then enable
   it from the <em>Imagery</em> menu. Note JOSM's placeholder is
   <code>{zoom}</code>, not <code>{z}</code>.
 </p>
@@ -109,26 +133,30 @@
 
 <h2>Notes</h2>
 <ul>
-  <li>Every stop the City publishes is kept. The City drops a retired stop
-      from its data rather than flagging it, so a stop OSM still has and this
-      layer lacks may be gone &mdash; the gap page lists those as
-      &ldquo;OSM only&rdquo;.</li>
-  <li>Stop names are the City's, verbatim (&ldquo;Edinburgh at Ginger
-      northbound&rdquo;), which is also what most OSM stops in Guelph already
-      carry.</li>
-  <li>Vector tiles are pre-rendered for z12&ndash;19; raster tiles for
-      z13&ndash;17 (the editor overzooms them further).</li>
+  <li>Only trees the City owns, or that stand on a property line, are
+      included. The City inventories some private trees too; they are left
+      out. A removed tree drops out of the City's data rather than being
+      flagged, so a tree on the imagery that this layer lacks may simply be
+      private, and one this layer has may since have come down.</li>
+  <li>The City's point is the trunk. A tree traced from imagery sits at the
+      centre of the crown, which can be a few metres away.</li>
+  <li>A trunk diameter over 300&nbsp;cm is a data-entry error, not a tree:
+      such a tree keeps its genus and species but has no
+      <code>circumference</code>, and is drawn at a default size.</li>
+  <li>Vector tiles are pre-rendered for z14&ndash;19 (iD needs native tiles,
+      so zoom in to 15 or closer); raster tiles for z13&ndash;18 (the editor
+      overzooms them further).</li>
   <li>Tiles are refreshed weekly from the City's service.</li>
-  <li>This is a <strong>reference</strong> layer &mdash; verify against survey or
-      street-level imagery before copying anything into OpenStreetMap. The
-      City's point marks the stop; where the pole actually stands can differ by
-      a few metres.</li>
+  <li>This is a <strong>reference</strong> layer &mdash; verify against survey
+      or imagery before copying anything into OpenStreetMap.</li>
 </ul>
 
 <footer>
   <a href="https://github.com/{{GITHUB_REPO}}">Project source on GitHub</a>
   &nbsp;&middot;&nbsp;
   <a href="https://guelph-maps.github.io/guelph-parks-layer/">Guelph parks layer</a>
+  &nbsp;&middot;&nbsp;
+  <a href="https://guelph-maps.github.io/guelph-bus-stops-layer/">Guelph bus stops layer</a>
   &nbsp;&middot;&nbsp;
   <a href="https://guelph-maps.github.io/guelph-address-layer/">Guelph address layer</a>
 </footer>
