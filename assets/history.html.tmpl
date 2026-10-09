@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Guelph Bus Stops &mdash; OSM Coverage Gaps Over Time</title>
+<title>Guelph Trees &mdash; OSM Coverage Gaps Over Time</title>
 <link rel="stylesheet" href="../index.css">
 <style>
   main { max-width: 1100px; }
@@ -29,8 +29,9 @@
   }
   .tip .d { color: var(--muted); }
   .tip i { display: inline-block; width: 12px; border-top: 2px solid; margin-right: .4rem; vertical-align: middle; }
-  .tip strong { display: inline-block; min-width: 3em; }
+  .tip strong { display: inline-block; min-width: 3.6em; }
   .empty { color: var(--muted); padding: 2rem 0; }
+  .runs-scroll { overflow-x: auto; }
   table.runs { font-size: .9rem; }
   table.runs th { width: auto; }
   table.runs td:first-child { white-space: nowrap; }
@@ -43,11 +44,11 @@
 
 <h1>OSM coverage gaps over time</h1>
 <p class="lead">
-  How many City of Guelph bus stops are still <strong>missing</strong> from
-  OpenStreetMap, mapped <strong>without their <code>ref</code></strong>, or
-  mapped under a <strong>different name</strong>, and how many OSM stops carry
-  a number the City <strong>no longer lists</strong> &mdash; one point per
-  weekly comparison, so a mapper can see the worklist shrink.
+  How many City of Guelph street and park trees still have
+  <strong>no OpenStreetMap tree</strong> beside them, and how many matched OSM
+  trees still lack a <strong>species</strong> or a <strong>girth</strong>
+  &mdash; one point per weekly comparison, so a mapper can see the worklist
+  shrink.
 </p>
 <p class="meta">{{RUN_COUNT}} comparisons since {{FIRST_DATE}} &middot; last {{BUILD_DATE}} &middot;
   <a href="./">current gaps</a> &middot; <a href="history.jsonl">data (JSONL)</a></p>
@@ -56,24 +57,27 @@
 <div class="chart" id="chart"><div class="tip" id="tip"></div></div>
 
 <p class="meta" style="margin-top:.75rem">
-  Points in the shaded span are reconstructed after the fact from OSM's own
-  history (an Overpass attic query for that date, compared against today's
-  City stops); the rest were observed by the weekly build. Counts follow
-  the City's Bus Stops layer, so they move when the City adds, retires or
-  renames stops, not only when someone maps one.
+  The chart counts trees; the cell counts (empty and thin squares) are in the
+  table below. Points in the shaded span are reconstructed after the fact from
+  OSM's own history (an Overpass attic query for that date, compared against
+  today's City trees); the rest were observed by the weekly build. Counts
+  follow the City's Trees layer, so they move when the City plants, removes or
+  re-measures trees, not only when someone maps one.
 </p>
 
 <h2>Every comparison</h2>
+<div class="runs-scroll">
 <table class="runs">
   <thead>
-    <tr><th>Date</th><th>Missing</th><th>No ref</th><th>Far</th><th>Duplicate</th>
-        <th>Unnamed</th><th>Mismatch</th><th>On-demand</th><th>OSM only</th>
-        <th>City stops</th><th>OSM stops</th><th>Source</th></tr>
+    <tr><th>Date</th><th>Empty cells</th><th>Thin cells</th><th>Missing</th>
+        <th>No species</th><th>No girth</th><th>Matched</th>
+        <th>City trees</th><th>OSM trees</th><th>Source</th></tr>
   </thead>
   <tbody>
 {{HISTORY_ROWS}}
   </tbody>
 </table>
+</div>
 
 <p class="meta" style="margin-top:2rem">
   Built by <a href="https://github.com/{{GITHUB_REPO}}">{{GITHUB_REPO}}</a>.

@@ -1,15 +1,17 @@
 // Gap history page: a four-series line chart of the recorded compare runs,
 // drawn as inline SVG from the rows embedded in the page. Same colours as the
-// gap map's markers, so "missing" is the same purple here and there.
+// gap page's tree markers and count tiles, so "missing" is the same purple
+// here and there. Only tree counts are charted; the cell counts are a
+// different unit and live in the table.
 
 (function () {
   "use strict";
 
   var SERIES = [
-    { key: "missing", label: "Missing in OSM", short: "missing", color: "#7048e8" },
-    { key: "noref", label: "OSM stop without ref", short: "no ref", color: "#2b8a3e" },
-    { key: "mismatch", label: "Name mismatch", short: "name mismatch", color: "#1c7ed6" },
-    { key: "osm_only", label: "OSM only", short: "OSM only", color: "#495057" },
+    { key: "missing", label: "City tree with no OSM tree nearby", short: "missing", color: "#7048e8" },
+    { key: "nospecies", label: "Matched OSM tree without species", short: "no species", color: "#1c7ed6" },
+    { key: "nogirth", label: "Matched OSM tree without girth", short: "no girth", color: "#0c8599" },
+    { key: "matched", label: "Matched", short: "matched", color: "#2b8a3e" },
   ];
   var W = 860, H = 320;
   var M = { top: 16, right: 150, bottom: 36, left: 48 };
