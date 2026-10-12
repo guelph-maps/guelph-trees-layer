@@ -11,8 +11,9 @@ from PIL import Image
 from src import config, history, raster
 
 # Screenshots shown on the landing page, copied from the project root when
-# present (they are added manually after the first publish).
-SCREENSHOTS = ["iD.png", "JOSM.png"]
+# present (taken by hand after the first publish). JPEG: the aerial imagery
+# behind them makes a PNG 2 MB.
+SCREENSHOTS = ["iD.jpg", "JOSM.jpg"]
 SCREENSHOT_MAX_WIDTH = 1500
 
 
