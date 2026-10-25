@@ -22,6 +22,8 @@
   var KIND_ORDER = { missing: 0, species: 1, girth: 2 };
   var NEED_LABEL = { species: "species", circumference: "girth" };
   var SELECTED = "#0a7";
+  var JOSM = "http://127.0.0.1:8111/load_and_zoom";
+  var PAD_M = 30;  // JOSM box: a cell's square, or a tree's point, padded by this
 
   var map;
   var matchM = "";           // MATCH_M, for wording only
@@ -146,10 +148,12 @@
         '<td class="num strong">' + fmt(p.missing) + "</td>" +
         '<td class="num">' + fmt(p.nospecies) + "</td>" +
         '<td class="status-' + esc(p.status) + '">' +
-        esc(CELL_LABEL[p.status] || p.status) + "</td></tr>";
+        esc(CELL_LABEL[p.status] || p.status) + "</td>" +
+        '<td class="osm-links">' + josmLinkHtml(cellJosm(f)) + "</td></tr>";
     }).join("");
 
     tbody.addEventListener("click", function (ev) {
+      if (ev.target.closest("a")) { return; }  // the JOSM link opens itself
       var tr = ev.target.closest("tr");
       if (tr) { goCell(tr.dataset.cell); }
     });
@@ -423,15 +427,45 @@
   // --- links ---
 
   // Where to send the user for a tree: its OSM node when matched, else the
-  // City's position, on openstreetmap.org and in the iD editor.
+  // City's position, on openstreetmap.org and in the iD editor; and JOSM
+  // remote control for the box around the tree, its OSM node selected.
   function osmTargets(t) {
+    var josm = josmUrl(t.lat, t.lon, t.lat, t.lon,
+      t.osm != null ? "node" + t.osm : null);
     if (t.osm != null) {
       return {
         osm: "https://www.openstreetmap.org/node/" + t.osm,
         id: "https://www.openstreetmap.org/edit?node=" + t.osm,
+        josm: josm,
       };
     }
-    return mapTargets(t.lat, t.lon, 20);
+    var m = mapTargets(t.lat, t.lon, 20);
+    m.josm = josm;
+    return m;
+  }
+
+  // JOSM for a whole cell: its square, nothing selected.
+  function cellJosm(f) {
+    var b = f._bounds;
+    return josmUrl(b.getSouth(), b.getWest(), b.getNorth(), b.getEast(), null);
+  }
+
+  // JOSM load_and_zoom for [south, west, north, east] padded by PAD_M. Opened
+  // as a plain link in one reused tab named "josm", not fetched: browsers
+  // gate background requests from a public page to localhost, but not a link
+  // the mapper clicks.
+  function josmUrl(s, w, n, e, select) {
+    var dLat = PAD_M / 111320;
+    var dLon = PAD_M / (111320 * Math.cos((s + n) / 2 * Math.PI / 180));
+    return JOSM + "?left=" + (w - dLon).toFixed(6) + "&right=" + (e + dLon).toFixed(6) +
+      "&top=" + (n + dLat).toFixed(6) + "&bottom=" + (s - dLat).toFixed(6) +
+      (select ? "&select=" + select : "") +
+      "&changeset_source=" + encodeURIComponent("City of Guelph Trees");
+  }
+
+  function josmLinkHtml(url) {
+    return '<a href="' + esc(url) + '" class="josm" target="josm" ' +
+      'title="Load this area into JOSM via remote control (hotkey: J)">JOSM</a>';
   }
 
   function mapTargets(lat, lon, z) {
@@ -442,12 +476,13 @@
     };
   }
 
-  // "OSM · iD" link pair shared by the table and the popups.
+  // "OSM · iD · JOSM" links shared by the table and the popups.
   function osmPairHtml(t) {
     return '<a href="' + t.osm + '" target="_blank" rel="noopener" ' +
       'title="View on openstreetmap.org (hotkey: O)">OSM</a> &middot; ' +
       '<a href="' + t.id + '" target="_blank" rel="noopener" ' +
-      'title="Open in the iD editor (hotkey: I)">iD</a>';
+      'title="Open in the iD editor (hotkey: I)">iD</a> &middot; ' +
+      josmLinkHtml(t.josm);
   }
 
   // --- controls ---
@@ -503,24 +538,30 @@
       if (tr) { selectTree(parseInt(tr.dataset.j, 10), true); }
     });
 
-    // O / I open the selected tree (or, with none picked, the cell) on
-    // openstreetmap.org / in the iD editor. Esc goes back to the cell list.
+    // O / I / J open the selected tree (or, with none picked, the cell) on
+    // openstreetmap.org / in the iD editor / in JOSM (the same reused "josm"
+    // tab as the links). Esc goes back to the cell list.
     document.addEventListener("keydown", function (ev) {
       if (ev.ctrlKey || ev.metaKey || ev.altKey) { return; }
       if (/^(input|textarea|select)$/i.test(ev.target.tagName)) { return; }
       if (!currentCell) { return; }
       if (ev.key === "Escape") { goList(); return; }
       var key = ev.key.toLowerCase();
-      if (key !== "o" && key !== "i") { return; }
+      if (key !== "o" && key !== "i" && key !== "j") { return; }
       var t;
       if (selectedTree != null && trees[selectedTree]) {
         t = osmTargets(trees[selectedTree]);
       } else {
         var c = currentCell._bounds.getCenter();
         t = mapTargets(c.lat, c.lng, 18);
+        t.josm = cellJosm(currentCell);
       }
       ev.preventDefault();
-      window.open(key === "o" ? t.osm : t.id, "_blank", "noopener");
+      if (key === "j") {
+        window.open(t.josm, "josm");
+      } else {
+        window.open(key === "o" ? t.osm : t.id, "_blank", "noopener");
+      }
     });
   }
 

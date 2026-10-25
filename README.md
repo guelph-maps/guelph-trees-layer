@@ -37,7 +37,10 @@ City's trees have an OSM tree within 5 m. Half the city has none.
   editors and the colour legend.
 - A **gap-review page** (`/gaps/`): a map of 250 m cells and a table of them,
   drilling into one cell's trees, and its **history page**
-  (`/gaps/history.html`) charting the counts, one point per weekly run.
+  (`/gaps/history.html`) charting the counts, one point per weekly run. Each
+  cell links to **JOSM** for its square, and each tree to openstreetmap.org,
+  iD and JOSM (needs JOSM running with Preferences &rarr; Remote Control
+  enabled).
 
 ## What a tree carries
 

@@ -82,7 +82,8 @@
           City trees have one within {{MATCH_M}}&nbsp;m. <strong>Covered</strong>:
           the rest &mdash; there may still be species or girth to add.
           <strong>Sparse</strong>: fewer than {{CELL_MIN_CITY}} City trees. Click
-          a cell or a row to list its trees.
+          a cell or a row to list its trees; a row's <strong>JOSM</strong> link
+          loads the whole cell into a running JOSM through remote control.
         </p>
       </div>
       <div class="table-scroll">
@@ -90,7 +91,7 @@
           <thead>
             <tr><th>Cell</th><th class="num">City</th><th class="num">OSM</th>
                 <th class="num">Missing</th><th class="num">No species</th>
-                <th>Status</th></tr>
+                <th>Status</th><th></th></tr>
           </thead>
           <tbody></tbody>
         </table>
@@ -110,9 +111,10 @@
         </div>
         <p class="hint">
           Click a row to zoom to the tree, then press <kbd>O</kbd> to open it on
-          openstreetmap.org or <kbd>I</kbd> in the iD editor (each row has the
-          same <strong>OSM&nbsp;&middot;&nbsp;iD</strong> link pair; with no
-          tree picked the keys open the cell). A matched tree links to its OSM
+          openstreetmap.org, <kbd>I</kbd> in the iD editor or <kbd>J</kbd> in
+          JOSM (each row has the same
+          <strong>OSM&nbsp;&middot;&nbsp;iD&nbsp;&middot;&nbsp;JOSM</strong>
+          links; with no tree picked the keys open the cell). A matched tree links to its OSM
           node, a missing one to the City's position. Matched trees that already
           carry species and girth are not listed.
         </p>
@@ -122,7 +124,7 @@
         <table class="gap-table" id="tree-table">
           <thead>
             <tr><th>Tree</th><th class="num">DBH</th>
-                <th>Status</th><th>OSM &middot; iD</th></tr>
+                <th>Status</th><th>OSM &middot; iD &middot; JOSM</th></tr>
           </thead>
           <tbody></tbody>
         </table>
