@@ -149,7 +149,8 @@
         '<td class="num">' + fmt(p.nospecies) + "</td>" +
         '<td class="status-' + esc(p.status) + '">' +
         esc(CELL_LABEL[p.status] || p.status) + "</td>" +
-        '<td class="osm-links">' + josmLinkHtml(cellJosm(f)) + "</td></tr>";
+        '<td class="osm-links">' + josmLinkHtml(cellJosm(f),
+          "Load this cell into JOSM via remote control") + "</td></tr>";
     }).join("");
 
     tbody.addEventListener("click", function (ev) {
@@ -463,9 +464,10 @@
       "&changeset_source=" + encodeURIComponent("City of Guelph Trees");
   }
 
-  function josmLinkHtml(url) {
-    return '<a href="' + esc(url) + '" class="josm" target="josm" ' +
-      'title="Load this area into JOSM via remote control (hotkey: J)">JOSM</a>';
+  function josmLinkHtml(url, title) {
+    return '<a href="' + esc(url) + '" class="josm" target="josm" title="' +
+      esc(title || "Load this area into JOSM via remote control (hotkey: J)") +
+      '">JOSM</a>';
   }
 
   function mapTargets(lat, lon, z) {
