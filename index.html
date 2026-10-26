@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guelph Trees &mdash; Reference Layer for OSM Editors</title>
+<link rel="stylesheet" href="index.css">
+<link rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin="">
+<script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""></script>
+<script defer src="index.js"></script>
+<script data-goatcounter="https://osm-guelph.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+</head>
+<body>
+<main>
+
+<h1>Guelph Trees</h1>
+<p class="lead">
+  A reference layer of the street and park trees in the City of Guelph's
+  inventory &mdash; <strong>42,994</strong> City- and boundary-owned
+  trees with their genus, species and trunk diameter &mdash; ready to add to
+  the <a href="https://www.openstreetmap.org">OpenStreetMap</a> editors
+  <strong>iD</strong> and <strong>JOSM</strong> while you map.
+</p>
+<p class="meta">City data: 2026-10-26 &middot; tiles rebuilt: 2026-10-26</p>
+
+<div class="attribution">
+  <a href="https://gismaps.guelph.ca/Images/OpenDataLicenceVersion2.pdf">Contains information licensed under the Open Government Licence – City of Guelph.</a>
+  Source: <a href="https://gismaps.guelph.ca/hosting/rest/services/OpenData/OpenData1/FeatureServer/7">Trees</a>.
+</div>
+
+<div class="note">
+  <strong>Before you copy anything:</strong> importing individual trees is
+  contested in OpenStreetMap, and copying species and girth off this overlay
+  tree by tree is, in effect, an attribute import. Use it as a reference: add
+  a tree you can see on imagery, give it a species you have verified, and do
+  not bulk-copy. The City's licence is compatible with OSM (the OSMF Licence
+  Working Group approved it on 2024-09-09), but compatibility is not
+  community consensus.
+</div>
+
+<h2>Preview</h2>
+<div id="preview-map" data-raster-url="https://guelph-maps.github.io/guelph-trees-layer/tiles/raster/{z}/{x}/{y}.png"></div>
+<ul class="legend">
+  <li><span class="swatch" style="background:rgb(220,38,38)"></span><span>Maple <i>Acer</i></span></li>
+  <li><span class="swatch" style="background:rgb(0,105,125)"></span><span>Spruce <i>Picea</i></span></li>
+  <li><span class="swatch" style="background:rgb(250,204,21)"></span><span>Honey locust <i>Gleditsia</i></span></li>
+  <li><span class="swatch" style="background:rgb(163,230,53)"></span><span>Linden <i>Tilia</i></span></li>
+  <li><span class="swatch" style="background:rgb(146,84,32)"></span><span>Oak <i>Quercus</i></span></li>
+  <li><span class="swatch" style="background:rgb(20,83,45)"></span><span>Pine <i>Pinus</i></span></li>
+  <li><span class="swatch" style="background:rgb(168,85,247)"></span><span>Lilac <i>Syringa</i></span></li>
+  <li><span class="swatch" style="background:rgb(13,148,136)"></span><span>Cedar <i>Thuja</i></span></li>
+  <li><span class="swatch" style="background:rgb(236,72,153)"></span><span>Hackberry <i>Celtis</i></span></li>
+  <li><span class="swatch" style="background:rgb(249,115,22)"></span><span>Plane tree <i>Platanus</i></span></li>
+  <li><span class="swatch" style="background:rgb(59,130,246)"></span><span>Other genus</span></li>
+  <li><span class="swatch" style="background:rgb(148,148,148)"></span><span>Genus not recorded</span></li>
+</ul>
+<p class="meta">
+  The raster layer drawn over OpenStreetMap: a dot per tree, coloured by
+  genus. From zoom 16 each crown is drawn to an approximate size estimated
+  from the trunk diameter &mdash; a guide to &ldquo;big tree here&rdquo;, not a
+  measured canopy.
+</p>
+
+<div class="attribution">
+  <strong>Coverage vs OpenStreetMap:</strong> see
+  <a href="gaps/">where OSM has no trees at all (by 250&nbsp;m cell), and
+  which mapped trees lack the species and girth the City records</a> &mdash;
+  a mapper's worklist with an interactive map.
+</div>
+
+<h2>Two layers &mdash; which to use</h2>
+<table>
+  <tr>
+    <th>Vector layer</th>
+    <td>Interactive. Click a tree to read its tags. Best in
+        <strong>iD</strong>.</td>
+  </tr>
+  <tr>
+    <th>Raster layer</th>
+    <td>Trees drawn directly on the tiles, coloured by genus. A readable
+        backdrop. Best in <strong>JOSM</strong>.</td>
+  </tr>
+</table>
+
+<h3>What the vector layer carries</h3>
+<table>
+  <tr>
+    <th>OSM keys</th>
+    <td><code>genus</code> (<em>Quercus</em>), <code>species</code>
+        (<em>Quercus rubra</em>) and <code>circumference</code> &mdash; the
+        trunk's girth in metres, which is OSM's key and unit, computed as
+        DBH&nbsp;&times;&nbsp;&pi;&nbsp;/&nbsp;100.</td>
+  </tr>
+  <tr>
+    <th>City-only fields</th>
+    <td><code>common_name</code>, <code>dbh_cm</code>, <code>planted</code>,
+        <code>owner</code>, <code>address</code>, <code>city_asset_id</code>.
+        These are <strong>not</strong> OSM tags. <code>common_name</code> is
+        often a cultivar (&ldquo;Crimson King Maple&rdquo;), not a species name.
+        <code>city_asset_id</code> is the City's inventory number &mdash; it is
+        not painted on the tree, so it is not a <code>ref</code>.</td>
+  </tr>
+</table>
+
+<h2>Add to iD</h2>
+<h3>Vector layer (interactive)</h3>
+<ol>
+  <li>Open the iD editor and press <kbd>U</kbd> for the <em>Map Data</em> panel.</li>
+  <li>Under <em>Custom Map Data</em>, open the settings and paste this URL:</li>
+</ol>
+<pre class="url">https://guelph-maps.github.io/guelph-trees-layer/tiles/vector/{z}/{x}/{y}.pbf</pre>
+<p>Zoom in to 15 or closer, then click any tree to see its tags in the
+   inspector.</p>
+<figure>
+  <a href="iD.jpg"><img src="iD.jpg" width="1500" height="900" loading="lazy"
+     alt="iD with the trees layer as pink rings along Dufferin Street; a City Harlequin Maple is selected and its tags shown in the sidebar"></a>
+  <figcaption>iD, Dufferin Street: the City's street trees are the pink rings,
+    and clicking one shows its tags. The white tree pins are OSM's trees,
+    mostly in back yards &mdash; the street trees here are not mapped yet.</figcaption>
+</figure>
+
+<h3>Raster layer (visible colours)</h3>
+<ol>
+  <li>Open the <em>Background</em> panel and choose <em>Custom</em>.</li>
+  <li>Paste this URL template:</li>
+</ol>
+<pre class="url">https://guelph-maps.github.io/guelph-trees-layer/tiles/raster/{z}/{x}/{y}.png</pre>
+
+<h2>Add to JOSM</h2>
+<h3>Raster layer (recommended for JOSM)</h3>
+<ol>
+  <li>Open <em>Preferences &rarr; Imagery</em> and click <strong>+TMS</strong>.</li>
+  <li>Paste this entry (the <code>tms[13,18]</code> prefix sets the zoom range;
+      JOSM scales it up past z18):</li>
+</ol>
+<pre class="url">tms[13,18]:https://guelph-maps.github.io/guelph-trees-layer/tiles/raster/{zoom}/{x}/{y}.png</pre>
+<p>
+  Give it a name such as <em>Guelph Trees</em>, click OK, then enable
+  it from the <em>Imagery</em> menu. Note JOSM's placeholder is
+  <code>{zoom}</code>, not <code>{z}</code>.
+</p>
+<figure>
+  <a href="JOSM.jpg"><img src="JOSM.jpg" width="1500" height="938" loading="lazy"
+     alt="JOSM with the trees raster over Esri imagery near Woolwich Street: City crowns coloured by genus along the streets, OSM's green tree icons in the yards"></a>
+  <figcaption>JOSM, the same neighbourhood: the raster's crowns, coloured by
+    genus, over Esri imagery and the OSM data layer.</figcaption>
+</figure>
+
+<h3>Vector layer (optional)</h3>
+<p>
+  JOSM can also add the vector tiles via <em>Preferences &rarr; Imagery</em> &rarr;
+  <strong>+MVT</strong>:
+</p>
+<pre class="url">https://guelph-maps.github.io/guelph-trees-layer/tiles/vector/{zoom}/{x}/{y}.pbf</pre>
+
+<h2>Notes</h2>
+<ul>
+  <li>Only trees the City owns, or that stand on a property line, are
+      included. The City inventories some private trees too; they are left
+      out. A removed tree drops out of the City's data rather than being
+      flagged, so a tree on the imagery that this layer lacks may simply be
+      private, and one this layer has may since have come down.</li>
+  <li>The City's point is the trunk. A tree traced from imagery sits at the
+      centre of the crown, which can be a few metres away.</li>
+  <li>A trunk diameter over 300&nbsp;cm is a data-entry error, not a tree:
+      such a tree keeps its genus and species but has no
+      <code>circumference</code>, and is drawn at a default size.</li>
+  <li>Vector tiles are pre-rendered for z14&ndash;19 (iD needs native tiles,
+      so zoom in to 15 or closer); raster tiles for z13&ndash;18 (the editor
+      overzooms them further).</li>
+  <li>Tiles are refreshed weekly from the City's service.</li>
+  <li>This is a <strong>reference</strong> layer &mdash; verify against survey
+      or imagery before copying anything into OpenStreetMap.</li>
+</ul>
+
+<footer>
+  <a href="https://github.com/guelph-maps/guelph-trees-layer">Project source on GitHub</a>
+  &nbsp;&middot;&nbsp;
+  <a href="https://guelph-maps.github.io/guelph-parks-layer/">Guelph parks layer</a>
+  &nbsp;&middot;&nbsp;
+  <a href="https://guelph-maps.github.io/guelph-bus-stops-layer/">Guelph bus stops layer</a>
+  &nbsp;&middot;&nbsp;
+  <a href="https://guelph-maps.github.io/guelph-address-layer/">Guelph address layer</a>
+</footer>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guelph Trees &mdash; OSM Coverage Gaps</title>
+<link rel="stylesheet" href="../index.css">
+<link rel="stylesheet" href="gaps.css">
+<link rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin="">
+<script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""></script>
+<script defer src="gaps.js"></script>
+<script data-goatcounter="https://osm-guelph.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+</head>
+<body class="app">
+
+<header class="bar">
+  <div class="bar-head">
+    <h1>Guelph Trees &mdash; OSM coverage gaps</h1>
+    <a class="back" href="../">&larr; reference layer</a>
+    <a class="back" href="history.html">gaps over time &rarr;</a>
+  </div>
+  <div class="counts">
+    <div class="count empty_cell"><strong>453</strong><span>250&nbsp;m cells with no OSM tree</span></div>
+    <div class="count thin_cell"><strong>159</strong><span>thin cells (under 50% matched)</span></div>
+    <div class="count missing"><strong>34,794</strong><span>City trees with no OSM tree within 5&nbsp;m</span></div>
+    <div class="count nospecies"><strong>8,057</strong><span>matched OSM trees without species</span></div>
+    <div class="count nogirth"><strong>8,106</strong><span>without girth</span></div>
+    <div class="count"><strong>42,994</strong><span>City trees</span></div>
+    <div class="count"><strong>53,986</strong><span>OSM trees</span></div>
+    <div class="count matched"><strong>8,200</strong><span>matched (19%)</span></div>
+    <div class="count meta-count">City data 2026-10-26 &middot; OSM data 2026-10-26 12:43Z &middot; compared 2026-10-26</div>
+  </div>
+  
+  <p class="caution">
+    <strong>Add what you verify.</strong> Copying species or girth from this
+    overlay into OSM is in effect an attribute import, and importing individual
+    trees is contested in OSM &mdash; add what you can check yourself (a crown
+    on imagery, a species on the ground); nothing here is meant to be
+    bulk-copied. OSM <code>circumference</code> is in metres (DBH &times;
+    &pi;&nbsp;/&nbsp;100; the City's DBH is in cm). OSM trees with no City tree
+    are not listed: woodlots, back yards and campus trees the City does not
+    inventory.
+  </p>
+  <p class="licence">
+    <a href="https://gismaps.guelph.ca/Images/OpenDataLicenceVersion2.pdf">Contains information licensed under the Open Government Licence – City of Guelph.</a>
+    Source: <a href="https://gismaps.guelph.ca/hosting/rest/services/OpenData/OpenData1/FeatureServer/7">Trees</a>.
+  </p>
+</header>
+
+<div class="layout">
+  <div id="gap-map"
+       data-cells="cells.geojson"
+       data-trees="trees.json"
+       data-match-m="5"
+       data-raster="../tiles/raster/{z}/{x}/{y}.png"></div>
+
+  <aside class="panel">
+    <!-- Mode 1: every cell holding a City tree, most missing trees first. -->
+    <div class="mode" id="cells-mode">
+      <div class="panel-head">
+        <div class="controls">
+          <label><span class="swatch empty_cell"></span>
+            <input type="checkbox" data-status="empty_cell" checked> Empty</label>
+          <label><span class="swatch thin_cell"></span>
+            <input type="checkbox" data-status="thin_cell" checked> Thin</label>
+          <label><span class="swatch covered"></span>
+            <input type="checkbox" data-status="covered" checked> Covered</label>
+          <label><span class="swatch sparse"></span>
+            <input type="checkbox" data-status="sparse"> Sparse</label>
+          <input type="search" id="filter" placeholder="Filter by street or cell...">
+        </div>
+        <p class="hint">
+          The City's street and park trees (raster layer), counted in
+          250&nbsp;m squares. <strong>Empty</strong>: at least
+          10 City trees and no OSM tree at all.
+          <strong>Thin</strong>: some OSM trees, but under 50% of the
+          City trees have one within 5&nbsp;m. <strong>Covered</strong>:
+          the rest &mdash; there may still be species or girth to add.
+          <strong>Sparse</strong>: fewer than 10 City trees. Click
+          a cell or a row to list its trees; a row's <strong>JOSM</strong> link
+          loads the whole cell into a running JOSM through remote control.
+        </p>
+      </div>
+      <div class="table-scroll">
+        <table class="gap-table" id="cell-table">
+          <thead>
+            <tr><th>Cell</th><th class="num">City</th><th class="num">OSM</th>
+                <th class="num">Missing</th><th class="num">No species</th>
+                <th>Status</th><th></th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Mode 2: one cell's trees that need something. -->
+    <div class="mode" id="cell-mode" hidden>
+      <div class="panel-head">
+        <a class="back-cells" href="#" id="back-cells">&larr; all cells</a>
+        <h2 id="cell-title"></h2>
+        <p class="cell-counts" id="cell-counts"></p>
+        <div class="controls key">
+          <span><span class="swatch t-missing"></span> no OSM tree within 5&nbsp;m</span>
+          <span><span class="swatch t-species"></span> OSM tree lacks species</span>
+          <span><span class="swatch t-girth"></span> lacks girth only</span>
+        </div>
+        <p class="hint">
+          Click a row to zoom to the tree, then press <kbd>O</kbd> to open it on
+          openstreetmap.org, <kbd>I</kbd> in the iD editor or <kbd>J</kbd> in
+          JOSM (each row has the same
+          <strong>OSM&nbsp;&middot;&nbsp;iD&nbsp;&middot;&nbsp;JOSM</strong>
+          links; with no tree picked the keys open the cell). A matched tree links to its OSM
+          node, a missing one to the City's position. Matched trees that already
+          carry species and girth are not listed.
+        </p>
+      </div>
+      <div class="table-scroll">
+        <p class="table-note" id="tree-note" hidden></p>
+        <table class="gap-table" id="tree-table">
+          <thead>
+            <tr><th>Tree</th><th class="num">DBH</th>
+                <th>Status</th><th>OSM &middot; iD &middot; JOSM</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </aside>
+</div>
+
+</body>
+</html>
