@@ -198,13 +198,19 @@ def test_being_offline_is_not_reported_as_an_overpass_outage(paths, monkeypatch)
     assert from_cache is True
 
 
-def test_a_mirror_without_an_osm3s_block_still_dates_the_page(paths, monkeypatch):
-    monkeypatch.setattr(config, "OVERPASS_URLS", ("https://terse.example/api",))
+def test_a_reply_that_does_not_say_how_old_it_is_is_not_accepted(paths, monkeypatch):
+    # With no timestamp_osm_base there is nothing to show the data is fresh,
+    # and the page would date it today -- the failure the age check exists for.
+    monkeypatch.setattr(config, "OVERPASS_URLS",
+                        ("https://terse.example/api", "https://good.example/api"))
     terse = {"elements": GOOD["elements"]}
-    monkeypatch.setattr(compare.requests, "post",
-                        _post({"terse.example": FakeResponse(terse)}))
-    _data, osm_date, _from_cache = compare._load_osm()
-    assert osm_date.startswith("20")
+    post = _post({"terse.example": FakeResponse(terse),
+                  "good.example": FakeResponse(GOOD)})
+    monkeypatch.setattr(compare.requests, "post", post)
+    _data, osm_date, from_cache = compare._load_osm()
+    assert from_cache is False
+    assert osm_date.startswith(OSM_BASE[:10])
+    assert [u.split("/")[2] for u in post.calls] == ["terse.example", "good.example"]
 
 
 def test_the_cache_date_falls_back_to_the_file_mtime(paths, monkeypatch):
