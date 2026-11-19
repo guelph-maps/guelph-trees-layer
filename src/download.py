@@ -20,11 +20,11 @@ worth doing: a run lost to a dead link is not retried for a week.
 import hashlib
 import json
 import os
-import time
 from datetime import date
 
-import requests
+import requests  # noqa: F401 -- the tests patch requests.get here
 from addressvault import net
+from layerkit import citydata
 
 from src import config
 
@@ -75,25 +75,9 @@ def download(force=False):
 
 
 def _fetch(url):
-    """GET ``url``, retrying a dropped connection. Returns the raw body."""
-    for attempt in range(RETRIES + 1):
-        try:
-            resp = requests.get(
-                url,
-                headers={"User-Agent": config.USER_AGENT},
-                timeout=600,
-            )
-            resp.raise_for_status()
-            return resp.content
-        except requests.RequestException as e:
-            if attempt == RETRIES:
-                # Out of retries. If the link itself is down then this was never
-                # a City failure -- say so, and the run exits 75 instead of
-                # logging a build error against a service never reached at all.
-                net.wait_for_link(wait=False)
-                raise
-            print(f"  query failed ({e}); retrying in {RETRY_WAIT}s")
-            time.sleep(RETRY_WAIT)
+    """GET ``url``, retrying a failed request. Returns the raw body."""
+    return citydata.get(url, user_agent=config.USER_AGENT,
+                        retries=RETRIES, wait=RETRY_WAIT)
 
 
 def _check_payload(body):
@@ -108,24 +92,7 @@ def _check_payload(body):
     stopping for, not working around. The City adds ~1,000 trees a year, so the
     limit is decades away.
     """
-    try:
-        doc = json.loads(body)
-    except ValueError as e:
-        raise RuntimeError(f"The service did not return JSON: {e}")
-    if "error" in doc:
-        raise RuntimeError(f"The service returned an error: {doc['error']}")
-    if doc.get("type") != "FeatureCollection":
-        raise RuntimeError(f"Expected a FeatureCollection, got {doc.get('type')!r}")
-    if doc.get("exceededTransferLimit"):
-        raise RuntimeError(
-            "The service truncated the result (exceededTransferLimit). The "
-            "download is a partial extract -- paginate with resultOffset / "
-            "resultRecordCount before trusting it."
-        )
-    n = len(doc.get("features") or ())
-    print(f"  {n:,} features")
-    if not n:
-        raise RuntimeError("The service returned an empty FeatureCollection.")
+    citydata.check_feature_collection(body)
 
 
 def _load_sidecar():
