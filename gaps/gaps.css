@@ -1,0 +1,204 @@
+/* Gap-review page: full-viewport two-panel app shell over ../index.css. */
+
+html, body.app { height: 100%; }
+body.app { margin: 0; display: flex; flex-direction: column; }
+
+/* --- header bar --- */
+.bar {
+  flex: none;
+  padding: .7rem 1.1rem;
+  border-bottom: 1px solid var(--border);
+}
+.bar-head {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.bar h1 { font-size: 1.25rem; margin: 0; border: 0; }
+.bar .back { font-size: .9rem; white-space: nowrap; }
+
+.counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin-top: .6rem;
+}
+.count {
+  padding: .35rem .7rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--code-bg);
+  line-height: 1.15;
+}
+.count strong { font-size: 1.15rem; margin-right: .35rem; }
+.count span { color: var(--muted); font-size: .82rem; }
+.count.empty_cell { border-left: 4px solid #c92a2a; }
+.count.thin_cell { border-left: 4px solid #e8590c; }
+.count.missing { border-left: 4px solid #7048e8; }
+.count.nospecies { border-left: 4px solid #1c7ed6; }
+.count.nogirth { border-left: 4px solid #0c8599; }
+.count.matched { border-left: 4px solid #2b8a3e; }
+.count.meta-count {
+  display: flex;
+  align-items: center;
+  color: var(--muted);
+  font-size: .82rem;
+  background: none;
+  border: 0;
+  margin-left: auto;
+}
+
+/* The City licence notice. Publishing these tiles redistributes City data, and
+   carrying this line is the licence condition attached to that -- so it sits in
+   the gap page header in its own right, not only on the landing page, because
+   the gap page is often the only page a mapper ever opens. */
+.licence {
+  margin: .6rem 0 0;
+  font-size: .82rem;
+  color: var(--muted);
+}
+
+/* Shown only when Overpass could not be reached and the diff ran on cached OSM;
+   the header is otherwise all counts, so a warning needs its own row. */
+.stale {
+  margin: .5rem 0 0;
+  padding: .45rem .7rem;
+  border-left: 4px solid #e8590c;
+  background: rgba(232, 89, 12, .09);
+  color: var(--ink);
+  font-size: .85rem;
+  line-height: 1.4;
+}
+
+/* "Add what you verify": always shown, and in the header rather than the side
+   panel, because copying tree attributes wholesale would be an import and the
+   page must not read as an invitation to one. */
+.caution {
+  margin: .5rem 0 0;
+  padding: .45rem .7rem;
+  border-left: 4px solid #1c7ed6;
+  background: rgba(28, 126, 214, .07);
+  color: var(--ink);
+  font-size: .85rem;
+  line-height: 1.4;
+}
+.caution code { font-size: .92em; }
+
+/* --- two-panel body --- */
+.layout { flex: 1; display: flex; min-height: 0; }
+#gap-map { flex: 1 1 auto; min-width: 0; height: 100%; }
+
+.panel {
+  flex: 0 0 30rem;
+  max-width: 45vw;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-left: 1px solid var(--border);
+}
+/* The panel shows one mode at a time: the cell list or one cell's trees. */
+.mode { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.mode[hidden] { display: none; }
+.panel-head { flex: none; padding: .8rem 1rem; border-bottom: 1px solid var(--border); }
+.table-scroll { flex: 1; overflow: auto; }
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .9rem;
+}
+.controls label { display: inline-flex; align-items: center; gap: .35rem; white-space: nowrap; }
+.controls #filter {
+  flex: 1 1 9rem;
+  padding: .35rem .55rem;
+  font: inherit;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.controls.key { gap: .4rem .9rem; margin-top: .5rem; font-size: .85rem; }
+.controls.key > span { display: inline-flex; align-items: center; gap: .35rem; white-space: nowrap; }
+.hint { margin: .6rem 0 0; color: var(--muted); font-size: .82rem; line-height: 1.45; }
+
+/* Cell swatches are squares (cells are squares); tree swatches are dots. */
+.swatch { display: inline-block; width: .9rem; height: .9rem; border-radius: 50%; }
+.swatch.empty_cell, .swatch.thin_cell, .swatch.covered, .swatch.sparse {
+  border-radius: 2px;
+  border: 1px solid;
+}
+.swatch.empty_cell { background: rgba(201, 42, 42, .45); border-color: #c92a2a; }
+.swatch.thin_cell { background: rgba(232, 89, 12, .3); border-color: #e8590c; }
+.swatch.covered { background: rgba(43, 138, 62, .1); border-color: #2b8a3e; }
+.swatch.sparse { background: rgba(134, 142, 150, .06); border-color: #868e96; }
+.swatch.t-missing { background: #7048e8; }
+.swatch.t-species { background: #1c7ed6; }
+.swatch.t-girth { background: #0c8599; }
+
+/* --- one cell's head --- */
+.back-cells { font-size: .9rem; }
+#cell-title { font-size: 1.1rem; margin: .35rem 0 0; padding: 0; border: 0; }
+.cell-counts { margin: .3rem 0 0; font-size: .85rem; color: var(--muted); }
+.cell-counts strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+.table-note { margin: 0; padding: .8rem 1rem; color: var(--muted); font-size: .88rem; }
+
+/* --- data tables --- */
+.gap-table { font-size: .9rem; }
+.gap-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  width: auto;
+  background: var(--code-bg);
+  border-top: 0;
+}
+.gap-table th, .gap-table td { padding: .45rem .55rem; }
+.gap-table tbody tr { cursor: pointer; }
+.gap-table tbody tr:hover { background: #f0f8f3; }
+.gap-table tbody tr.selected { background: #e6f4ec; }
+.gap-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gap-table .num.strong { font-weight: 600; }
+.cell-id { color: var(--muted); font-size: .8em; font-weight: 400; white-space: nowrap; }
+.gap-table .cell-label { font-weight: 600; }
+.gap-table .sci { color: var(--muted); font-style: italic; font-size: .88em; }
+.gap-table .addr { display: block; color: var(--muted); font-size: .85em; }
+.gap-table .dist { color: var(--muted); font-weight: 400; font-size: .85em; }
+.gap-table .osm-links { white-space: nowrap; }
+
+.status-empty_cell { color: #c92a2a; font-weight: 600; }
+.status-thin_cell { color: #c2410c; font-weight: 600; }
+.status-covered { color: #2b8a3e; font-weight: 600; }
+.status-sparse { color: #666; font-weight: 600; }
+.status-missing { color: #5f3dc4; font-weight: 600; }
+.status-species { color: #1864ab; font-weight: 600; }
+.status-girth { color: #0b7285; font-weight: 600; }
+
+/* Tree popups: the tags the City record offers, set as code. */
+.leaflet-popup-content code {
+  font-size: .9em;
+  padding: 0 .25em;
+  background: var(--code-bg);
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.leaflet-popup-content .offer { color: var(--muted); }
+
+.hint kbd {
+  display: inline-block;
+  padding: 0 .35em;
+  font: 600 .9em/1.5 ui-monospace, Menlo, Consolas, monospace;
+  color: var(--ink, #222);
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}
+
+/* Narrow screens: header, map and panel stack and the page scrolls; the header
+   (counts plus the caution note) is too tall here to pin the rest under it. */
+@media (max-width: 820px) {
+  html, body.app { height: auto; }
+  .layout { flex: none; flex-direction: column; }
+  #gap-map { height: 48vh; flex: none; }
+  .panel { flex: none; height: 75vh; max-width: none; border-left: 0; border-top: 1px solid var(--border); }
+  .count.meta-count { margin-left: 0; }
+}
